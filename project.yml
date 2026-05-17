@@ -1,0 +1,24 @@
+name: GarminCoach
+options:
+  bundleIdPrefix: com.yourname
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15"
+
+targets:
+  GarminCoach:
+    type: application
+    platform: iOS
+    sources:
+      - path: GarminCoach
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yourname.GarminCoach
+        SWIFT_VERSION: "5.9"
+        INFOPLIST_FILE: GarminCoach/Resources/Info.plist
+        DEVELOPMENT_TEAM: ""
+    entitlements:
+      path: GarminCoach/GarminCoach.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
