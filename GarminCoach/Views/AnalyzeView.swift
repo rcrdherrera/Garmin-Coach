@@ -1,24 +1,24 @@
 import SwiftUI
 
-struct CoachingView: View {
-    @State private var brief = ""
-    @State private var sessionType = "weekly"
+struct AnalyzeView: View {
+    @State private var report = ""
+    @State private var period = "week"
     @State private var isLoading = false
     @State private var error: String?
     @State private var lastUpdated: Date?
 
-    private let sessionTypes: [(label: String, value: String, icon: String)] = [
-        ("Weekly Plan",  "weekly",     "calendar.badge.plus"),
-        ("Run Session",  "running",    "figure.run"),
-        ("Strength",     "strength",   "dumbbell.fill"),
-        ("Lower Body",   "lower-body", "figure.strengthtraining.functional"),
-        ("Upper Body",   "upper-body", "figure.arms.open"),
+    private let periods: [(label: String, value: String)] = [
+        ("This week",  "week"),
+        ("Last week",  "last-week"),
+        ("This month", "month"),
+        ("Last month", "last-month"),
+        ("This year",  "year"),
     ]
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                sessionTypePicker
+                periodPicker
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -31,9 +31,8 @@ struct CoachingView: View {
                         if isLoading {
                             VStack(spacing: 12) {
                                 ProgressView()
-                                Text("Designing your \(sessionTypes.first(where: { $0.value == sessionType })?.label.lowercased() ?? sessionType)…")
+                                Text("Analyzing \(periods.first(where: { $0.value == period })?.label.lowercased() ?? period)…")
                                     .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.top, 60)
@@ -41,56 +40,42 @@ struct CoachingView: View {
                         } else if let error {
                             errorCard(error)
 
-                        } else if !brief.isEmpty {
-                            Text(brief)
+                        } else if !report.isEmpty {
+                            Text(report)
                                 .font(.body)
                                 .lineSpacing(5)
 
                         } else {
                             ContentUnavailableView(
-                                "No Session Yet",
-                                systemImage: "figure.run.circle",
-                                description: Text("Choose a session type and tap Coach to get your personalized plan based on today's readiness.")
+                                "No Analysis",
+                                systemImage: "chart.bar.xaxis",
+                                description: Text("Select a period and tap Analyze.")
                             ).padding(.top, 40)
                         }
                     }
                     .padding()
                 }
             }
-            .navigationTitle("Coach")
+            .navigationTitle("Analyze")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button { Task { await getCoaching() } } label: {
+                    Button { Task { await analyze() } } label: {
                         if isLoading { ProgressView().scaleEffect(0.8) }
-                        else { Label("Coach", systemImage: "wand.and.stars") }
+                        else { Label("Analyze", systemImage: "chart.bar.doc.horizontal") }
                     }.disabled(isLoading)
                 }
             }
         }
     }
 
-    private var sessionTypePicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(sessionTypes, id: \.value) { st in
-                    Button {
-                        sessionType = st.value
-                        brief = ""; error = nil; lastUpdated = nil
-                    } label: {
-                        Label(st.label, systemImage: st.icon)
-                            .font(.caption)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(sessionType == st.value ? Color.accentColor : Color(.secondarySystemFill),
-                                        in: Capsule())
-                            .foregroundStyle(sessionType == st.value ? .white : .primary)
-                    }
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 10)
+    private var periodPicker: some View {
+        Picker("Period", selection: $period) {
+            ForEach(periods, id: \.value) { Text($0.label).tag($0.value) }
         }
+        .pickerStyle(.segmented)
+        .padding()
         .background(Color(.systemGroupedBackground))
+        .onChange(of: period) { _, _ in report = ""; error = nil; lastUpdated = nil }
     }
 
     @ViewBuilder
@@ -104,12 +89,12 @@ struct CoachingView: View {
         .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private func getCoaching() async {
+    private func analyze() async {
         isLoading = true; error = nil
         defer { isLoading = false }
         do {
-            let resp = try await ServerClient.shared.coach(type: sessionType)
-            brief = resp.brief
+            let resp = try await ServerClient.shared.analyze(period: period)
+            report = resp.report
             lastUpdated = .now
         } catch {
             self.error = error.localizedDescription

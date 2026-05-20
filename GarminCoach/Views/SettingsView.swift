@@ -1,87 +1,90 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @State private var apiKey = ""
-    @State private var isKeyHidden = true
-    @State private var keyIsSaved = false
-    @State private var showSavedAlert = false
-    @FocusState private var fieldFocused: Bool
+    @State private var serverURL  = ""
+    @State private var serverToken = ""
+    @State private var isSaved    = false
+    @State private var isReachable: Bool? = nil
+    @State private var checking = false
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    HStack {
-                        Group {
-                            if isKeyHidden {
-                                SecureField("sk-ant-api03-…", text: $apiKey)
-                            } else {
-                                TextField("sk-ant-api03-…", text: $apiKey)
-                            }
-                        }
-                        .focused($fieldFocused)
+                    TextField("http://100.x.x.x:8765", text: $serverURL)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                        .toolbar {
-                            ToolbarItemGroup(placement: .keyboard) {
-                                Spacer()
-                                Button("Done") { fieldFocused = false }
-                            }
-                        }
-
-                        Button {
-                            isKeyHidden.toggle()
-                        } label: {
-                            Image(systemName: isKeyHidden ? "eye" : "eye.slash")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Button("Save Key") {
-                        KeychainHelper.saveAPIKey(apiKey)
-                        apiKey = ""
-                        keyIsSaved = true
-                        showSavedAlert = true
-                    }
-                    .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty)
-
+                        .keyboardType(.URL)
                 } header: {
-                    Text("Anthropic API Key")
+                    Text("Server URL")
                 } footer: {
-                    Text("Stored in the iOS Keychain. Never transmitted except to api.anthropic.com.")
+                    Text("Your home server address. Use the Tailscale IP so it works anywhere.")
                 }
 
-                if keyIsSaved {
-                    Section {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            Text("API key saved")
+                Section {
+                    SecureField("Secret token", text: $serverToken)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                } header: {
+                    Text("Server Token")
+                } footer: {
+                    Text("The COACH_SERVER_TOKEN you set in start_server.ps1.")
+                }
+
+                Section {
+                    Button("Save") {
+                        KeychainHelper.saveServerURL(serverURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                        KeychainHelper.saveServerToken(serverToken.trimmingCharacters(in: .whitespaces))
+                        isSaved = true
+                        isReachable = nil
+                    }
+                    .disabled(serverURL.isEmpty || serverToken.isEmpty)
+
+                    if isSaved {
+                        Button("Test Connection") {
+                            Task { await testConnection() }
+                        }
+                        .disabled(checking)
+
+                        if checking {
+                            HStack {
+                                ProgressView().scaleEffect(0.8)
+                                Text("Checking…").foregroundStyle(.secondary)
+                            }
+                        } else if let ok = isReachable {
+                            Label(
+                                ok ? "Server reachable" : "Cannot reach server",
+                                systemImage: ok ? "checkmark.circle.fill" : "xmark.circle.fill"
+                            )
+                            .foregroundStyle(ok ? .green : .red)
                         }
 
-                        Button("Remove Key", role: .destructive) {
-                            KeychainHelper.deleteAPIKey()
-                            keyIsSaved = false
+                        Button("Remove Config", role: .destructive) {
+                            KeychainHelper.deleteServerConfig()
+                            isSaved = false
+                            isReachable = nil
                         }
                     }
                 }
 
                 Section("About") {
-                    LabeledContent("Model", value: "Claude Opus 4.7")
-                    LabeledContent("Data Source", value: "Apple Health")
-                    LabeledContent("Version", value: "1.0")
+                    LabeledContent("Coaching Engine", value: "Claude Opus 4.7 (server-side)")
+                    LabeledContent("Garmin Data", value: "Live API + SQLite history")
+                    LabeledContent("Version", value: "2.0")
                 }
             }
             .navigationTitle("Settings")
+            .onAppear {
+                isSaved = KeychainHelper.hasServerConfig()
+                serverURL   = KeychainHelper.loadServerURL()   ?? ""
+                serverToken = KeychainHelper.loadServerToken() ?? ""
+            }
         }
-        .onAppear {
-            keyIsSaved = KeychainHelper.hasAPIKey()
-        }
-        .alert("Saved", isPresented: $showSavedAlert) {
-            Button("OK") {}
-        } message: {
-            Text("API key saved to Keychain.")
-        }
+    }
+
+    private func testConnection() async {
+        checking = true
+        isReachable = await ServerClient.shared.isReachable()
+        checking = false
     }
 }

@@ -3,14 +3,20 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         TabView {
+            StatusView()
+                .tabItem { Label("Today", systemImage: "waveform.path.ecg") }
+
             CoachingView()
-                .tabItem {
-                    Label("Coach", systemImage: "figure.run")
-                }
+                .tabItem { Label("Coach", systemImage: "figure.run") }
+
+            AnalyzeView()
+                .tabItem { Label("Analyze", systemImage: "chart.bar.xaxis") }
+
+            EvaluateView()
+                .tabItem { Label("Evaluate", systemImage: "checkmark.seal") }
+
             SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
+                .tabItem { Label("Settings", systemImage: "gear") }
         }
     }
 }
