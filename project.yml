@@ -1,6 +1,6 @@
 name: GarminCoach
 options:
-  bundleIdPrefix: com.yourname
+  bundleIdPrefix: com.ricardo-herrera
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "15"
@@ -13,7 +13,7 @@ targets:
       - path: GarminCoach
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.yourname.GarminCoach
+        PRODUCT_BUNDLE_IDENTIFIER: com.ricardo-herrera.GarminCoach
         SWIFT_VERSION: "5.9"
         INFOPLIST_FILE: GarminCoach/Resources/Info.plist
         DEVELOPMENT_TEAM: ""

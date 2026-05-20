@@ -1,6 +1,6 @@
 import HealthKit
 
-class HealthKitManager {
+class HealthKitManager: @unchecked Sendable {
     static let shared = HealthKitManager()
 
     private let store = HKHealthStore()

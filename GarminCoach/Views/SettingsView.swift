@@ -5,6 +5,7 @@ struct SettingsView: View {
     @State private var isKeyHidden = true
     @State private var keyIsSaved = false
     @State private var showSavedAlert = false
+    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -18,8 +19,15 @@ struct SettingsView: View {
                                 TextField("sk-ant-api03-…", text: $apiKey)
                             }
                         }
+                        .focused($fieldFocused)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                Spacer()
+                                Button("Done") { fieldFocused = false }
+                            }
+                        }
 
                         Button {
                             isKeyHidden.toggle()
