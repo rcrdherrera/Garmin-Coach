@@ -69,6 +69,10 @@ struct EvaluateResponse: Decodable {
     }
 }
 
+struct ChatResponse: Decodable {
+    let response: String
+}
+
 // MARK: - Errors
 
 enum ServerError: LocalizedError {
@@ -155,6 +159,11 @@ class ServerClient {
         var body: [String: Any] = [:]
         if let id = activityId { body["activity_id"] = id }
         return try await request("/evaluate", method: "POST", body: body, timeout: 120)
+    }
+
+    func chat(message: String) async throws -> String {
+        let resp: ChatResponse = try await request("/chat", method: "POST", body: ["message": message], timeout: 60)
+        return resp.response
     }
 
     func isReachable() async -> Bool {

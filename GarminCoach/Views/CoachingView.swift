@@ -22,29 +22,27 @@ struct CoachingView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        if let updated = lastUpdated {
-                            Text("Updated \(updated.formatted(.relative(presentation: .named)))")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-
                         if isLoading {
-                            VStack(spacing: 12) {
-                                ProgressView()
-                                Text("Designing your \(sessionTypes.first(where: { $0.value == sessionType })?.label.lowercased() ?? sessionType)…")
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 60)
+                            LoadingCard(message: "Designing your \(sessionTypes.first(where: { $0.value == sessionType })?.label.lowercased() ?? sessionType)…")
 
                         } else if let error {
-                            errorCard(error)
+                            ErrorCard(message: error)
 
                         } else if !brief.isEmpty {
-                            Text(brief)
-                                .font(.body)
-                                .lineSpacing(5)
+                            VStack(alignment: .leading, spacing: 10) {
+                                if let updated = lastUpdated {
+                                    Text("Updated \(updated.formatted(.relative(presentation: .named)))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                        .frame(maxWidth: .infinity, alignment: .trailing)
+                                }
+                                Text(brief)
+                                    .font(.body)
+                                    .lineSpacing(5)
+                            }
+                            .padding(16)
+                            .background(.regularMaterial,
+                                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                         } else {
                             ContentUnavailableView(
@@ -56,6 +54,7 @@ struct CoachingView: View {
                     }
                     .padding()
                 }
+                .background(Color(.systemGroupedBackground))
             }
             .navigationTitle("Coach")
             .toolbar {
@@ -91,17 +90,6 @@ struct CoachingView: View {
             .padding(.vertical, 10)
         }
         .background(Color(.systemGroupedBackground))
-    }
-
-    @ViewBuilder
-    private func errorCard(_ msg: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Error", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red).fontWeight(.semibold)
-            Text(msg).foregroundStyle(.secondary).font(.subheadline)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func getCoaching() async {

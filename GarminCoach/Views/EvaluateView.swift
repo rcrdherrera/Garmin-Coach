@@ -11,34 +11,36 @@ struct EvaluateView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let updated = lastUpdated {
-                        Text("Updated \(updated.formatted(.relative(presentation: .named)))")
-                            .font(.caption).foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-
                     if isLoading {
-                        VStack(spacing: 12) {
-                            ProgressView()
-                            Text("Evaluating last run…").foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 60)
+                        LoadingCard(message: "Evaluating last run…")
 
                     } else if let error {
-                        errorCard(error)
+                        ErrorCard(message: error)
 
                     } else if !report.isEmpty {
-                        if let dateStr = activityDate {
-                            Text(dateStr)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                if let dateStr = activityDate {
+                                    Label(dateStr, systemImage: "calendar")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if let updated = lastUpdated {
+                                    Text("Updated \(updated.formatted(.relative(presentation: .named)))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            Divider()
+                            Text(report)
+                                .font(.body)
+                                .lineSpacing(5)
+                                .fontDesign(.monospaced)
                         }
-                        Text(report)
-                            .font(.body)
-                            .lineSpacing(5)
-                            .fontDesign(.monospaced)
+                        .padding(16)
+                        .background(.regularMaterial,
+                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     } else {
                         ContentUnavailableView(
@@ -50,6 +52,7 @@ struct EvaluateView: View {
                 }
                 .padding()
             }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("Evaluate")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -60,17 +63,6 @@ struct EvaluateView: View {
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private func errorCard(_ msg: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Error", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red).fontWeight(.semibold)
-            Text(msg).foregroundStyle(.secondary).font(.subheadline)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func evaluate() async {

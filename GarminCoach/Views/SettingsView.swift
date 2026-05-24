@@ -1,11 +1,13 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @State private var serverURL  = ""
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var serverURL   = ""
     @State private var serverToken = ""
-    @State private var isSaved    = false
+    @State private var isSaved     = false
     @State private var isReachable: Bool? = nil
-    @State private var checking = false
+    @State private var checking    = false
 
     var body: some View {
         NavigationStack {
@@ -74,6 +76,12 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Done") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+            }
             .onAppear {
                 isSaved = KeychainHelper.hasServerConfig()
                 serverURL   = KeychainHelper.loadServerURL()   ?? ""
