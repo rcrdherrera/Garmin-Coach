@@ -21,13 +21,15 @@ enum AnalyzeMode: String, CaseIterable {
 // MARK: - View
 
 struct AnalyzeView: View {
-    // Mode & date selections
-    @State private var mode: AnalyzeMode = .week
-    @State private var selectedDay   = Date()
+    // Mode starts nil — user must pick one before analyzing
+    @State private var mode: AnalyzeMode? = nil
+
+    // Date selections (sensible defaults)
+    @State private var selectedDay     = Date()
     @State private var selectedWeekRef = Date()
-    @State private var selectedMonth = Date()
+    @State private var selectedMonth   = Date()
     @State private var customStart: Date = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
-    @State private var customEnd     = Date()
+    @State private var customEnd       = Date()
 
     // Results
     @State private var report        = ""
@@ -38,9 +40,9 @@ struct AnalyzeView: View {
 
     // MARK: Computed period
 
-    private var periodString: String {
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
+    private var periodString: String? {
+        guard let mode else { return nil }
+        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
         switch mode {
         case .day:
             return df.string(from: selectedDay)
@@ -56,6 +58,7 @@ struct AnalyzeView: View {
     }
 
     private var periodDisplayLabel: String {
+        guard let mode else { return "" }
         switch mode {
         case .day:
             return selectedDay.formatted(date: .abbreviated, time: .omitted)
@@ -74,8 +77,7 @@ struct AnalyzeView: View {
     }
 
     private func weekRange(for date: Date) -> (Date, Date) {
-        var cal = Calendar(identifier: .gregorian)
-        cal.firstWeekday = 2
+        var cal = Calendar(identifier: .gregorian); cal.firstWeekday = 2
         let weekday = cal.component(.weekday, from: date)
         let daysFromMonday = (weekday + 5) % 7
         let monday = cal.date(byAdding: .day, value: -daysFromMonday, to: date)!
@@ -84,7 +86,9 @@ struct AnalyzeView: View {
     }
 
     private var canAnalyze: Bool {
-        mode != .custom || customEnd >= customStart
+        guard mode != nil else { return false }
+        if mode == .custom { return customEnd >= customStart }
+        return true
     }
 
     // MARK: Body
@@ -94,8 +98,11 @@ struct AnalyzeView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     modePicker
-                    dateCard
-                    Divider().padding(.horizontal)
+
+                    if let mode {
+                        dateCard(mode: mode)
+                        Divider().padding(.horizontal)
+                    }
 
                     if isLoading {
                         LoadingCard(message: "Analyzing \(periodDisplayLabel)…")
@@ -105,9 +112,13 @@ struct AnalyzeView: View {
                         reportView
                     } else {
                         ContentUnavailableView(
-                            "No Analysis",
-                            systemImage: "chart.bar.xaxis",
-                            description: Text("Select a period and tap Analyze.")
+                            mode == nil ? "Select a Period" : "No Analysis",
+                            systemImage: mode == nil ? "calendar.badge.clock" : "chart.bar.xaxis",
+                            description: Text(
+                                mode == nil
+                                    ? "Choose Day, Week, Month, or a Custom range above."
+                                    : "Tap Analyze to generate your report."
+                            )
                         )
                         .padding(.top, 20)
                     }
@@ -158,7 +169,7 @@ struct AnalyzeView: View {
     // MARK: Date Card
 
     @ViewBuilder
-    private var dateCard: some View {
+    private func dateCard(mode: AnalyzeMode) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             switch mode {
             case .day:
@@ -217,9 +228,7 @@ struct AnalyzeView: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-
             Divider()
-
             Text(report)
                 .font(.body)
                 .lineSpacing(5)
@@ -235,11 +244,12 @@ struct AnalyzeView: View {
     }
 
     private func analyze() async {
+        guard let period = periodString else { return }
         isLoading = true; error = nil
         let label = periodDisplayLabel
         defer { isLoading = false }
         do {
-            let resp = try await ServerClient.shared.analyze(period: periodString)
+            let resp = try await ServerClient.shared.analyze(period: period)
             report = resp.report
             analyzedLabel = label
             lastUpdated = .now

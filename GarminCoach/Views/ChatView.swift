@@ -2,11 +2,17 @@ import SwiftUI
 
 // MARK: - Model
 
-struct ChatMessage: Identifiable {
-    let id = UUID()
-    enum Role { case user, assistant }
+struct ChatMessage: Identifiable, Codable {
+    let id: UUID
+    enum Role: String, Codable { case user, assistant }
     let role: Role
     let text: String
+
+    init(role: Role, text: String) {
+        self.id = UUID()
+        self.role = role
+        self.text = text
+    }
 }
 
 // MARK: - ChatView
@@ -17,6 +23,8 @@ struct ChatView: View {
     @State private var isLoading = false
     @State private var errorText: String?
     @FocusState private var inputFocused: Bool
+
+    private let storageKey = "garmincoach_chat_history"
 
     private let suggestions = [
         "How's my training load this week?",
@@ -44,6 +52,7 @@ struct ChatView: View {
                     ToolbarItem(placement: .primaryAction) {
                         Button("Clear") {
                             withAnimation { messages = []; errorText = nil }
+                            clearStorage()
                         }
                     }
                 }
@@ -51,6 +60,7 @@ struct ChatView: View {
             .safeAreaInset(edge: .bottom) {
                 inputBar
             }
+            .onAppear { loadMessages() }
         }
     }
 
@@ -207,15 +217,36 @@ struct ChatView: View {
         guard !text.isEmpty else { return }
         inputText = ""
         errorText = nil
-        withAnimation { messages.append(ChatMessage(role: .user, text: text)) }
+        let userMsg = ChatMessage(role: .user, text: text)
+        withAnimation { messages.append(userMsg) }
         isLoading = true
         defer { isLoading = false }
         do {
             let response = try await ServerClient.shared.chat(message: text)
-            withAnimation { messages.append(ChatMessage(role: .assistant, text: response)) }
+            let assistantMsg = ChatMessage(role: .assistant, text: response)
+            withAnimation { messages.append(assistantMsg) }
+            saveMessages()
         } catch {
             withAnimation { errorText = error.localizedDescription }
         }
+    }
+
+    // MARK: - Persistence
+
+    private func saveMessages() {
+        guard let data = try? JSONEncoder().encode(messages) else { return }
+        UserDefaults.standard.set(data, forKey: storageKey)
+    }
+
+    private func loadMessages() {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let saved = try? JSONDecoder().decode([ChatMessage].self, from: data)
+        else { return }
+        messages = saved
+    }
+
+    private func clearStorage() {
+        UserDefaults.standard.removeObject(forKey: storageKey)
     }
 }
 
