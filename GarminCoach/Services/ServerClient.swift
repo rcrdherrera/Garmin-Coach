@@ -58,6 +58,25 @@ struct CoachResponse: Decodable {
     let date: String
     let type: String
     let brief: String
+    let uploadedWorkouts: [UploadedWorkout]?
+
+    enum CodingKeys: String, CodingKey {
+        case date, type, brief, uploadedWorkouts = "uploaded_workouts"
+    }
+}
+
+struct UploadedWorkout: Decodable, Identifiable {
+    let name: String
+    let date: String
+    let workoutId: Int?
+    let scheduledId: Int?
+    let error: String?
+
+    var id: String { "\(name)-\(date)" }
+
+    enum CodingKeys: String, CodingKey {
+        case name, date, workoutId = "workout_id", scheduledId = "scheduled_id", error
+    }
 }
 
 struct EvaluateResponse: Decodable {
@@ -151,8 +170,8 @@ class ServerClient {
         try await request("/analyze", method: "POST", body: ["period": period], timeout: 120)
     }
 
-    func coach(type: String) async throws -> CoachResponse {
-        try await request("/coach", method: "POST", body: ["type": type, "upload": false], timeout: 120)
+    func coach(type: String, upload: Bool = false) async throws -> CoachResponse {
+        try await request("/coach", method: "POST", body: ["type": type, "upload": upload], timeout: 120)
     }
 
     func evaluate(activityId: Int? = nil) async throws -> EvaluateResponse {
