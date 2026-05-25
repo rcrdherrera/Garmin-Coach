@@ -61,6 +61,7 @@ struct ChatView: View {
                 inputBar
             }
             .onAppear { loadMessages() }
+            .onTapGesture { inputFocused = false }
         }
     }
 
@@ -188,6 +189,12 @@ struct ChatView: View {
                                 in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .focused($inputFocused)
                     .disabled(isLoading)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { inputFocused = false }
+                        }
+                    }
 
                 Button {
                     Task { await send() }

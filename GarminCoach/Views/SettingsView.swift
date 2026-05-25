@@ -3,11 +3,18 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var serverURL   = ""
-    @State private var serverToken = ""
-    @State private var isSaved     = false
+    @State private var serverURL    = ""
+    @State private var serverToken  = ""
+    @State private var savedURL     = ""
+    @State private var savedToken   = ""
+    @State private var isSaved      = false
     @State private var isReachable: Bool? = nil
-    @State private var checking    = false
+    @State private var checking     = false
+
+    private var hasUnsavedChanges: Bool {
+        serverURL.trimmingCharacters(in: .whitespacesAndNewlines) != savedURL ||
+        serverToken.trimmingCharacters(in: .whitespaces) != savedToken
+    }
 
     var body: some View {
         NavigationStack {
@@ -35,8 +42,12 @@ struct SettingsView: View {
 
                 Section {
                     Button("Save") {
-                        KeychainHelper.saveServerURL(serverURL.trimmingCharacters(in: .whitespacesAndNewlines))
-                        KeychainHelper.saveServerToken(serverToken.trimmingCharacters(in: .whitespaces))
+                        let url = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let tok = serverToken.trimmingCharacters(in: .whitespaces)
+                        KeychainHelper.saveServerURL(url)
+                        KeychainHelper.saveServerToken(tok)
+                        savedURL = url
+                        savedToken = tok
                         isSaved = true
                         isReachable = nil
                     }
@@ -46,7 +57,7 @@ struct SettingsView: View {
                         Button("Test Connection") {
                             Task { await testConnection() }
                         }
-                        .disabled(checking)
+                        .disabled(checking || hasUnsavedChanges)
 
                         if checking {
                             HStack {
@@ -86,6 +97,8 @@ struct SettingsView: View {
                 isSaved = KeychainHelper.hasServerConfig()
                 serverURL   = KeychainHelper.loadServerURL()   ?? ""
                 serverToken = KeychainHelper.loadServerToken() ?? ""
+                savedURL    = serverURL
+                savedToken  = serverToken
             }
         }
     }
