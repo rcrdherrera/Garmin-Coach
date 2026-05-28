@@ -1,56 +1,103 @@
 import SwiftUI
 import Charts
+import SwiftData
 
-// MARK: - Recovery Ring Card (hero section)
+// MARK: - Design tokens
+
+extension Color {
+    static let brutalBackground = Color.black
+    static let brutalCard       = Color(white: 0.08)
+    static let brutalBorder     = Color.white.opacity(0.10)
+    static let brutalRed        = Color(red: 1, green: 0.12, blue: 0.12)
+    static let brutalRedSoft    = Color(red: 1, green: 0.12, blue: 0.12).opacity(0.15)
+}
+
+private func brutalCard<S: Shape>(_ shape: S) -> some View {
+    shape
+        .fill(Color.brutalCard)
+        .overlay(shape.stroke(Color.brutalBorder, lineWidth: 1))
+}
+
+// MARK: - Recovery Ring Card
 
 struct RecoveryRingCard: View {
     let status: ServerStatus
 
-    private var score: Int { status.readiness?.score ?? 0 }
-    private var level: String { status.readiness?.level?.capitalized ?? "" }
+    private var score: Int? { status.readiness?.score }
+    private var level: String { status.readiness?.level?.uppercased() ?? "" }
 
     private var ringColor: Color {
-        switch score {
+        guard let s = score else { return Color.white.opacity(0.2) }
+        switch s {
         case 80...: return .green
-        case 60..<80: return .teal
+        case 60..<80: return Color(red: 0.2, green: 0.8, blue: 0.6)
         case 40..<60: return .yellow
-        default: return .red
+        default: return .brutalRed
         }
+    }
+
+    private var ringFill: CGFloat {
+        guard let s = score else { return 0 }
+        return CGFloat(s) / 100
+    }
+
+    private var recoveryDelta: String? {
+        guard let high = status.bodyBattery?.high,
+              let low  = status.bodyBattery?.low,
+              high > low else { return nil }
+        return "+\(high - low)"
     }
 
     var body: some View {
         VStack(spacing: 20) {
             ZStack {
                 Circle()
-                    .stroke(ringColor.opacity(0.15), lineWidth: 16)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 16)
                     .frame(width: 180, height: 180)
 
                 Circle()
-                    .trim(from: 0, to: CGFloat(score) / 100)
+                    .trim(from: 0, to: ringFill)
                     .stroke(ringColor, style: StrokeStyle(lineWidth: 16, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 180, height: 180)
                     .animation(.easeInOut(duration: 0.8), value: score)
 
-                VStack(spacing: 2) {
-                    Text("\(score)")
-                        .font(.system(size: 52, weight: .bold, design: .rounded))
-                        .foregroundStyle(ringColor)
+                VStack(spacing: 4) {
+                    if let s = score {
+                        Text("\(s)")
+                            .font(.system(size: 52, weight: .black, design: .default))
+                            .foregroundStyle(ringColor)
+                    } else {
+                        Text("--")
+                            .font(.system(size: 52, weight: .black, design: .default))
+                            .foregroundStyle(Color.white.opacity(0.3))
+                    }
                     Text("RECOVERY")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.4))
                         .tracking(2)
+                    if let delta = recoveryDelta {
+                        Text(delta)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.green)
+                    }
                 }
             }
             .padding(.top, 4)
 
             if !level.isEmpty {
                 Text(level)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.system(size: 12, weight: .black))
                     .foregroundStyle(ringColor)
+                    .tracking(1.5)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 7)
-                    .background(ringColor.opacity(0.12), in: Capsule())
+                    .background(ringColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+            } else if score == nil {
+                Text("AWAITING DATA")
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundStyle(Color.white.opacity(0.3))
+                    .tracking(1.5)
             }
 
             HStack(spacing: 32) {
@@ -66,22 +113,22 @@ struct RecoveryRingCard: View {
             }
         }
         .padding(20)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(brutalCard(RoundedRectangle(cornerRadius: 10, style: .continuous)))
     }
 
     @ViewBuilder
     private func ringStatItem(label: String, value: String, unit: String) -> some View {
         VStack(spacing: 4) {
             HStack(alignment: .lastTextBaseline, spacing: 3) {
-                Text(value).font(.title3.weight(.bold))
+                Text(value).font(.system(size: 18, weight: .black))
                 if !unit.isEmpty {
-                    Text(unit).font(.caption2).foregroundStyle(.secondary)
+                    Text(unit).font(.caption2).foregroundStyle(Color.white.opacity(0.5))
                 }
             }
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .tracking(0.5)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.4))
+                .tracking(1)
         }
     }
 }
@@ -91,51 +138,59 @@ struct RecoveryRingCard: View {
 struct BodyBatteryCard: View {
     let battery: ServerStatus.BodyBattery
 
-    private var level: Int { battery.current ?? 0 }
+    private var level: Int? { battery.current }
     private var color: Color {
-        switch level {
+        guard let l = level else { return Color.white.opacity(0.2) }
+        switch l {
         case 60...: return .green
         case 30..<60: return .yellow
-        default: return .red
+        default: return .brutalRed
         }
     }
 
     var body: some View {
         VStack(spacing: 12) {
             ZStack {
-                // Gauge arc (bottom semicircle)
                 Circle()
                     .trim(from: 0.25, to: 0.75)
-                    .stroke(color.opacity(0.15), style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .stroke(Color.white.opacity(0.08), style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     .rotationEffect(.degrees(90))
                     .frame(width: 72, height: 72)
 
                 Circle()
-                    .trim(from: 0.25, to: 0.25 + Double(level) / 100 * 0.5)
+                    .trim(from: 0.25, to: 0.25 + Double(level ?? 0) / 100 * 0.5)
                     .stroke(color, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     .rotationEffect(.degrees(90))
                     .frame(width: 72, height: 72)
                     .animation(.easeInOut(duration: 0.8), value: level)
 
-                Text("\(level)")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(color)
+                if let l = level {
+                    Text("\(l)")
+                        .font(.system(size: 18, weight: .black))
+                        .foregroundStyle(color)
+                } else {
+                    Text("--")
+                        .font(.system(size: 18, weight: .black))
+                        .foregroundStyle(Color.white.opacity(0.3))
+                }
             }
 
             VStack(spacing: 2) {
                 Text("BODY BATTERY")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.4))
                     .tracking(0.5)
                     .multilineTextAlignment(.center)
-                Text("↑\(battery.high ?? 0)  ↓\(battery.low ?? 0)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if let h = battery.high, let l = battery.low {
+                    Text("H \(h)  L \(l)")
+                        .font(.caption2)
+                        .foregroundStyle(Color.white.opacity(0.3))
+                }
             }
         }
         .frame(maxWidth: .infinity)
         .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(brutalCard(RoundedRectangle(cornerRadius: 10, style: .continuous)))
     }
 }
 
@@ -144,51 +199,71 @@ struct BodyBatteryCard: View {
 struct SleepCard: View {
     let sleep: ServerStatus.Sleep
 
-    private var score: Int { sleep.score ?? 0 }
+    private var score: Int? { sleep.score }
+
+    private var scoreColor: Color {
+        guard let s = score else { return Color.white.opacity(0.2) }
+        switch s {
+        case 80...: return .green
+        case 60..<80: return Color(red: 0.2, green: 0.8, blue: 0.6)
+        case 40..<60: return .yellow
+        default: return .brutalRed
+        }
+    }
 
     var body: some View {
         VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .stroke(Color.indigo.opacity(0.15), lineWidth: 10)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 10)
                     .frame(width: 60, height: 60)
 
                 Circle()
-                    .trim(from: 0, to: Double(score) / 100)
-                    .stroke(Color.indigo, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .trim(from: 0, to: Double(score ?? 0) / 100)
+                    .stroke(scoreColor, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 60, height: 60)
                     .animation(.easeInOut(duration: 0.8), value: score)
 
-                Text("\(score)")
-                    .font(.callout.weight(.bold))
-                    .foregroundStyle(.indigo)
+                if let s = score {
+                    Text("\(s)")
+                        .font(.system(size: 15, weight: .black))
+                        .foregroundStyle(scoreColor)
+                } else {
+                    Text("--")
+                        .font(.system(size: 15, weight: .black))
+                        .foregroundStyle(Color.white.opacity(0.3))
+                }
             }
 
             VStack(spacing: 2) {
                 Text("SLEEP")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.4))
                     .tracking(0.5)
-                if let dur = sleep.durationH {
+                if let dur = sleep.durationH, dur > 0 {
                     Text(String(format: "%.1fh", dur))
-                        .font(.callout.weight(.semibold))
+                        .font(.callout.weight(.bold))
+                } else {
+                    Text("--")
+                        .font(.callout.weight(.bold))
+                        .foregroundStyle(Color.white.opacity(0.3))
                 }
                 HStack(spacing: 6) {
-                    if let deep = sleep.deepH {
+                    if let deep = sleep.deepH, deep > 0 {
                         Text("D \(String(format: "%.1fh", deep))")
                     }
-                    if let rem = sleep.remH {
+                    if let rem = sleep.remH, rem > 0 {
                         Text("R \(String(format: "%.1fh", rem))")
                     }
                 }
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.white.opacity(0.3))
             }
         }
         .frame(maxWidth: .infinity)
         .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(brutalCard(RoundedRectangle(cornerRadius: 10, style: .continuous)))
     }
 }
 
@@ -201,7 +276,7 @@ struct HRVContextCard: View {
         switch hrv.status?.uppercased() {
         case "BALANCED":   return .green
         case "UNBALANCED": return .orange
-        default:           return .red
+        default:           return .brutalRed
         }
     }
 
@@ -212,14 +287,16 @@ struct HRVContextCard: View {
                 .font(.title3)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("HRV Context")
-                    .font(.caption.weight(.semibold))
+                Text("HRV CONTEXT")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.4))
+                    .tracking(1)
                 HStack(spacing: 12) {
                     if let weekly = hrv.weeklyAvg {
-                        Text("7-day avg: \(weekly) ms").font(.caption2).foregroundStyle(.secondary)
+                        Text("7-day avg: \(weekly) ms").font(.caption2).foregroundStyle(Color.white.opacity(0.6))
                     }
                     if let low = hrv.baselineLow, let high = hrv.baselineHigh {
-                        Text("Baseline: \(low)–\(high) ms").font(.caption2).foregroundStyle(.secondary)
+                        Text("Baseline: \(low)–\(high) ms").font(.caption2).foregroundStyle(Color.white.opacity(0.6))
                     }
                 }
             }
@@ -227,16 +304,17 @@ struct HRVContextCard: View {
             Spacer()
 
             if let status = hrv.status {
-                Text(status.capitalized)
-                    .font(.caption.weight(.semibold))
+                Text(status.uppercased())
+                    .font(.system(size: 10, weight: .black))
                     .foregroundStyle(statusColor)
+                    .tracking(1)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(statusColor.opacity(0.12), in: Capsule())
+                    .background(statusColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
             }
         }
         .padding(14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(brutalCard(RoundedRectangle(cornerRadius: 10, style: .continuous)))
     }
 }
 
@@ -252,43 +330,23 @@ struct TrendsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("TRENDS")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .tracking(1)
+            Text("14-DAY TRENDS")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.4))
+                .tracking(1.5)
                 .padding(.horizontal, 4)
 
             if !hrvData.isEmpty {
-                TrendCard(
-                    title: "HRV",
-                    value: snapshots.last?.hrv.map { "\($0) ms" } ?? "—",
-                    data: hrvData,
-                    color: .green
-                )
+                TrendCard(title: "HRV", value: snapshots.last?.hrv.map { "\($0) ms" } ?? "—", data: hrvData, color: .green)
             }
             if !sleepData.isEmpty {
-                TrendCard(
-                    title: "Sleep Score",
-                    value: snapshots.last?.sleepScore.map { "\($0)" } ?? "—",
-                    data: sleepData,
-                    color: .indigo
-                )
+                TrendCard(title: "Sleep Score", value: snapshots.last?.sleepScore.map { "\($0)" } ?? "—", data: sleepData, color: Color(red: 0.4, green: 0.3, blue: 1))
             }
             if !bbData.isEmpty {
-                TrendCard(
-                    title: "Body Battery",
-                    value: snapshots.last?.bodyBatteryHigh.map { "\($0)" } ?? "—",
-                    data: bbData,
-                    color: .yellow
-                )
+                TrendCard(title: "Body Battery", value: snapshots.last?.bodyBatteryHigh.map { "\($0)" } ?? "—", data: bbData, color: .yellow)
             }
             if !rhrData.isEmpty {
-                TrendCard(
-                    title: "Resting HR",
-                    value: snapshots.last?.rhr.map { "\($0) bpm" } ?? "—",
-                    data: rhrData,
-                    color: .red
-                )
+                TrendCard(title: "Resting HR", value: snapshots.last?.rhr.map { "\($0) bpm" } ?? "—", data: rhrData, color: .brutalRed)
             }
         }
     }
@@ -305,13 +363,12 @@ struct TrendCard: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.5)
+                Text(title.uppercased())
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.4))
+                    .tracking(1)
                 Text(value)
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: 18, weight: .black))
                     .lineLimit(1)
             }
             .frame(width: 100, alignment: .leading)
@@ -322,7 +379,7 @@ struct TrendCard: View {
                 .frame(width: 110, height: 44)
         }
         .padding(14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(brutalCard(RoundedRectangle(cornerRadius: 10, style: .continuous)))
     }
 }
 
@@ -332,10 +389,7 @@ struct SparklineChart: View {
     let data: [Double]
     let color: Color
 
-    private struct Point: Identifiable {
-        let id: Int
-        let value: Double
-    }
+    private struct Point: Identifiable { let id: Int; let value: Double }
 
     private var points: [Point] {
         data.enumerated().map { Point(id: $0.offset, value: $0.element) }
@@ -347,26 +401,13 @@ struct SparklineChart: View {
                 RoundedRectangle(cornerRadius: 4).fill(color.opacity(0.1))
             } else {
                 Chart(points) { pt in
-                    AreaMark(
-                        x: .value("Day", pt.id),
-                        y: .value("Value", pt.value)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [color.opacity(0.3), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .interpolationMethod(.catmullRom)
-
-                    LineMark(
-                        x: .value("Day", pt.id),
-                        y: .value("Value", pt.value)
-                    )
-                    .foregroundStyle(color)
-                    .interpolationMethod(.catmullRom)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    AreaMark(x: .value("Day", pt.id), y: .value("Value", pt.value))
+                        .foregroundStyle(LinearGradient(colors: [color.opacity(0.3), .clear], startPoint: .top, endPoint: .bottom))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Day", pt.id), y: .value("Value", pt.value))
+                        .foregroundStyle(color)
+                        .interpolationMethod(.catmullRom)
+                        .lineStyle(StrokeStyle(lineWidth: 2))
                 }
                 .chartXAxis(.hidden)
                 .chartYAxis(.hidden)
@@ -376,7 +417,7 @@ struct SparklineChart: View {
     }
 }
 
-// MARK: - HR Zones Chart
+// MARK: - HR Zones Chart (single-activity, used in ActivityDetailView)
 
 struct HRZonesChart: View {
     let z1s: Double?
@@ -386,43 +427,407 @@ struct HRZonesChart: View {
     let z5s: Double?
 
     private struct Zone: Identifiable {
-        let id: String
-        let minutes: Double
-        let color: Color
+        let id: String; let label: String; let minutes: Double; let pct: Double; let color: Color
     }
 
     private var zones: [Zone] {
-        [
-            Zone(id: "Z1", minutes: (z1s ?? 0) / 60, color: .blue.opacity(0.7)),
-            Zone(id: "Z2", minutes: (z2s ?? 0) / 60, color: .teal),
-            Zone(id: "Z3", minutes: (z3s ?? 0) / 60, color: .yellow),
-            Zone(id: "Z4", minutes: (z4s ?? 0) / 60, color: .orange),
-            Zone(id: "Z5", minutes: (z5s ?? 0) / 60, color: .red),
-        ].filter { $0.minutes > 0.1 }
+        let raw = [
+            (id: "Z1", label: "Z1  <147",    secs: z1s ?? 0, color: Color.white.opacity(0.3)),
+            (id: "Z2", label: "Z2  147–162",  secs: z2s ?? 0, color: Color.teal),
+            (id: "Z3", label: "Z3  163–173",  secs: z3s ?? 0, color: Color.yellow),
+            (id: "Z4", label: "Z4  174–181",  secs: z4s ?? 0, color: Color.orange),
+            (id: "Z5", label: "Z5  182+",     secs: z5s ?? 0, color: Color.brutalRed),
+        ]
+        let total = raw.map { $0.secs }.reduce(0, +)
+        return raw.filter { $0.secs > 0.1 }.map {
+            Zone(id: $0.id, label: $0.label, minutes: $0.secs / 60,
+                 pct: total > 0 ? $0.secs / total * 100 : 0, color: $0.color)
+        }
     }
 
     var body: some View {
         Group {
             if zones.isEmpty {
-                Text("No HR zone data available")
+                Text("No HR zone data")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.white.opacity(0.3))
             } else {
                 Chart(zones) { zone in
-                    BarMark(
-                        x: .value("Minutes", zone.minutes),
-                        y: .value("Zone", zone.id)
-                    )
-                    .foregroundStyle(zone.color)
-                    .annotation(position: .trailing, alignment: .leading, spacing: 6) {
-                        Text(String(format: "%.0fm", zone.minutes))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
+                    BarMark(x: .value("Minutes", zone.minutes), y: .value("Zone", zone.label))
+                        .foregroundStyle(zone.color)
+                        .annotation(position: .trailing, alignment: .leading, spacing: 6) {
+                            Text(String(format: "%.0fm · %.0f%%", zone.minutes, zone.pct))
+                                .font(.caption2)
+                                .foregroundStyle(Color.white.opacity(0.5))
+                        }
                 }
                 .chartXAxis(.hidden)
                 .frame(height: CGFloat(zones.count) * 38)
             }
         }
+    }
+}
+
+// MARK: - Weekly Mileage Card
+
+enum ChartPeriod: String, CaseIterable {
+    case sevenDays  = "7D"
+    case oneMonth   = "1M"
+    case threeMonths = "3M"
+    case sixMonths  = "6M"
+    case oneYear    = "1Y"
+
+    var days: Int {
+        switch self {
+        case .sevenDays:   return 7
+        case .oneMonth:    return 30
+        case .threeMonths: return 90
+        case .sixMonths:   return 180
+        case .oneYear:     return 365
+        }
+    }
+}
+
+private struct WeekPoint: Identifiable {
+    let id: String       // ISO week key "YYYY-WNN"
+    let weekStart: Date
+    let km: Double
+}
+
+struct WeeklyMileageCard: View {
+    let activities: [CachedActivity]
+
+    @State private var period: ChartPeriod = .threeMonths
+    @State private var selectedWeek: String?
+
+    private var cutoff: Date {
+        Calendar.current.date(byAdding: .day, value: -period.days, to: .now) ?? .now
+    }
+
+    private var points: [WeekPoint] {
+        let filtered = activities.filter { a in
+            a.isRun && !a.startTimeLocal.isEmpty &&
+            (parseDateFast(a.startTimeLocal) ?? .distantPast) >= cutoff
+        }
+
+        if filtered.isEmpty { return mockPoints }
+
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        var buckets: [String: (Date, Double)] = [:]
+        for a in filtered {
+            guard let d = parseDateFast(a.startTimeLocal) else { continue }
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: d)
+            let key = "\(comps.yearForWeekOfYear ?? 0)-W\(String(format: "%02d", comps.weekOfYear ?? 0))"
+            let monday = cal.date(from: comps) ?? d
+            buckets[key, default: (monday, 0)].1 += a.distanceKm
+        }
+        return buckets
+            .sorted { $0.key < $1.key }
+            .map { WeekPoint(id: $0.key, weekStart: $0.value.0, km: $0.value.1) }
+    }
+
+    private var mockPoints: [WeekPoint] {
+        let vols: [Double] = [0, 8, 12, 10, 14, 16, 12, 18, 15, 20, 17, 22]
+        var cal = Calendar(identifier: .gregorian)
+        cal.firstWeekday = 2
+        return vols.enumerated().compactMap { (i, km) in
+            guard let d = cal.date(byAdding: .weekOfYear, value: -(vols.count - 1 - i), to: .now) else { return nil }
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: d)
+            let key = "\(comps.yearForWeekOfYear ?? 0)-W\(String(format: "%02d", comps.weekOfYear ?? 0))"
+            let monday = cal.date(from: comps) ?? d
+            return WeekPoint(id: key, weekStart: monday, km: km)
+        }
+    }
+
+    private var selectedPoint: WeekPoint? {
+        guard let sel = selectedWeek else { return nil }
+        return points.first { $0.id == sel }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("WEEKLY MILEAGE")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.4))
+                        .tracking(1.5)
+                    if let sel = selectedPoint {
+                        Text(String(format: "%.1f km", sel.km))
+                            .font(.system(size: 22, weight: .black))
+                        Text(weekLabel(sel.weekStart))
+                            .font(.caption2)
+                            .foregroundStyle(Color.white.opacity(0.4))
+                    } else if let last = points.last {
+                        Text(String(format: "%.1f km", last.km))
+                            .font(.system(size: 22, weight: .black))
+                        Text("this week")
+                            .font(.caption2)
+                            .foregroundStyle(Color.white.opacity(0.4))
+                    }
+                }
+                Spacer()
+                periodPicker
+            }
+
+            if points.count >= 2 {
+                Chart(points) { pt in
+                    AreaMark(x: .value("Week", pt.weekStart), y: .value("km", pt.km))
+                        .foregroundStyle(LinearGradient(
+                            colors: [Color.brutalRed.opacity(0.25), .clear],
+                            startPoint: .top, endPoint: .bottom
+                        ))
+                        .interpolationMethod(.catmullRom)
+                    LineMark(x: .value("Week", pt.weekStart), y: .value("km", pt.km))
+                        .foregroundStyle(Color.brutalRed)
+                        .lineStyle(StrokeStyle(lineWidth: 2))
+                        .interpolationMethod(.catmullRom)
+                    PointMark(x: .value("Week", pt.weekStart), y: .value("km", pt.km))
+                        .foregroundStyle(selectedWeek == pt.id ? Color.white : Color.brutalRed)
+                        .symbolSize(selectedWeek == pt.id ? 60 : 25)
+                    if let sel = selectedWeek, sel == pt.id {
+                        RuleMark(x: .value("Week", pt.weekStart))
+                            .foregroundStyle(Color.white.opacity(0.2))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) { val in
+                        AxisValueLabel {
+                            if let v = val.as(Double.self) {
+                                Text("\(Int(v))k")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.white.opacity(0.35))
+                            }
+                        }
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(Color.white.opacity(0.08))
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .weekOfYear, count: strideCount)) { val in
+                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                            .foregroundStyle(Color.white.opacity(0.35))
+                            .font(.caption2)
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                            .foregroundStyle(Color.white.opacity(0.05))
+                    }
+                }
+                .chartXSelection(value: $selectedWeek.animation())
+                .frame(height: 160)
+            } else {
+                Text("Not enough data")
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.3))
+                    .frame(height: 100, alignment: .center)
+                    .frame(maxWidth: .infinity)
+            }
+
+            if activities.isEmpty {
+                Text("Showing sample data — sync activities from server to see real data.")
+                    .font(.caption2)
+                    .foregroundStyle(Color.white.opacity(0.25))
+            }
+        }
+        .padding(16)
+        .background(brutalCard(RoundedRectangle(cornerRadius: 10, style: .continuous)))
+    }
+
+    private var strideCount: Int {
+        switch period {
+        case .sevenDays: return 1
+        case .oneMonth: return 2
+        case .threeMonths: return 4
+        case .sixMonths: return 8
+        case .oneYear: return 12
+        }
+    }
+
+    private var periodPicker: some View {
+        HStack(spacing: 4) {
+            ForEach(ChartPeriod.allCases, id: \.self) { p in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { period = p; selectedWeek = nil }
+                } label: {
+                    Text(p.rawValue)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(period == p ? .black : Color.white.opacity(0.5))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(period == p ? Color.white : Color.white.opacity(0.08),
+                                    in: RoundedRectangle(cornerRadius: 4))
+                }
+            }
+        }
+    }
+
+    private func weekLabel(_ date: Date) -> String {
+        let end = Calendar.current.date(byAdding: .day, value: 6, to: date) ?? date
+        let fmt = DateFormatter(); fmt.dateFormat = "MMM d"
+        return "\(fmt.string(from: date)) – \(fmt.string(from: end))"
+    }
+
+    private func parseDateFast(_ s: String) -> Date? {
+        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = s.count > 10 ? "yyyy-MM-dd'T'HH:mm:ss" : "yyyy-MM-dd"
+        return df.date(from: String(s.prefix(19)))
+    }
+}
+
+// MARK: - HR Zones Aggregate Card
+
+struct HRZonesAggregateCard: View {
+    let activities: [CachedActivity]
+
+    @State private var period: ChartPeriod = .threeMonths
+    @State private var selectedZoneId: String?
+
+    private var cutoff: Date {
+        Calendar.current.date(byAdding: .day, value: -period.days, to: .now) ?? .now
+    }
+
+    private struct ZoneData: Identifiable {
+        let id: String; let label: String; let bpmRange: String
+        let minutes: Double; let pct: Double; let color: Color
+    }
+
+    private var zoneData: [ZoneData] {
+        let filtered = activities.filter { a in
+            !a.startTimeLocal.isEmpty &&
+            (parseDateFast(a.startTimeLocal) ?? .distantPast) >= cutoff
+        }
+
+        let z1 = filtered.compactMap { $0.hrZ1s }.reduce(0, +) / 60
+        let z2 = filtered.compactMap { $0.hrZ2s }.reduce(0, +) / 60
+        let z3 = filtered.compactMap { $0.hrZ3s }.reduce(0, +) / 60
+        let z4 = filtered.compactMap { $0.hrZ4s }.reduce(0, +) / 60
+        let z5 = filtered.compactMap { $0.hrZ5s }.reduce(0, +) / 60
+        let total = z1 + z2 + z3 + z4 + z5
+
+        let useMock = total < 1
+        let m1 = useMock ? 20.0 : z1
+        let m2 = useMock ? 65.0 : z2
+        let m3 = useMock ? 10.0 : z3
+        let m4 = useMock ? 4.0  : z4
+        let m5 = useMock ? 1.0  : z5
+        let tot = m1 + m2 + m3 + m4 + m5
+
+        func pct(_ v: Double) -> Double { tot > 0 ? v / tot * 100 : 0 }
+
+        return [
+            ZoneData(id: "Z1", label: "Z1", bpmRange: "<147",    minutes: m1, pct: pct(m1), color: Color.white.opacity(0.35)),
+            ZoneData(id: "Z2", label: "Z2", bpmRange: "147–162", minutes: m2, pct: pct(m2), color: .teal),
+            ZoneData(id: "Z3", label: "Z3", bpmRange: "163–173", minutes: m3, pct: pct(m3), color: .yellow),
+            ZoneData(id: "Z4", label: "Z4", bpmRange: "174–181", minutes: m4, pct: pct(m4), color: .orange),
+            ZoneData(id: "Z5", label: "Z5", bpmRange: "182+",    minutes: m5, pct: pct(m5), color: .brutalRed),
+        ].filter { $0.minutes >= 0.1 }
+    }
+
+    private var isMock: Bool {
+        activities.isEmpty ||
+        activities.filter { ($0.hrZ1s ?? 0) + ($0.hrZ2s ?? 0) > 0 }.isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("HR ZONE DISTRIBUTION")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.4))
+                        .tracking(1.5)
+                    if let sel = selectedZoneId, let z = zoneData.first(where: { $0.id == sel }) {
+                        Text(z.label)
+                            .font(.system(size: 22, weight: .black))
+                            .foregroundStyle(z.color)
+                        Text("\(z.bpmRange) bpm  ·  \(String(format: "%.0fm  ·  %.0f%%", z.minutes, z.pct))")
+                            .font(.caption2)
+                            .foregroundStyle(Color.white.opacity(0.4))
+                    } else {
+                        Text("Tap a bar")
+                            .font(.system(size: 22, weight: .black))
+                            .foregroundStyle(Color.white.opacity(0.2))
+                    }
+                }
+                Spacer()
+                periodPicker
+            }
+
+            Chart(zoneData) { z in
+                BarMark(x: .value("Minutes", z.minutes), y: .value("Zone", z.label))
+                    .foregroundStyle(selectedZoneId == nil || selectedZoneId == z.id ? z.color : z.color.opacity(0.3))
+                    .cornerRadius(3)
+                    .annotation(position: .trailing, alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(z.bpmRange)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(Color.white.opacity(0.35))
+                            Text(String(format: "%.0fm · %.0f%%", z.minutes, z.pct))
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(Color.white.opacity(0.5))
+                        }
+                    }
+            }
+            .chartXAxis(.hidden)
+            .chartYAxis {
+                AxisMarks { val in
+                    AxisValueLabel {
+                        if let s = val.as(String.self) {
+                            Text(s)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color.white.opacity(0.5))
+                        }
+                    }
+                }
+            }
+            .chartOverlay { proxy in
+                GeometryReader { geo in
+                    Rectangle().fill(.clear).contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 0).onChanged { val in
+                            let origin = geo[proxy.plotFrame!].origin
+                            let loc = CGPoint(x: val.location.x - origin.x, y: val.location.y - origin.y)
+                            if let label: String = proxy.value(atY: loc.y) {
+                                selectedZoneId = label
+                            }
+                        }.onEnded { _ in
+                            selectedZoneId = nil
+                        })
+                }
+            }
+            .frame(height: CGFloat(zoneData.count) * 44)
+
+            if isMock {
+                Text("Showing sample distribution — sync activities to see real zone data.")
+                    .font(.caption2)
+                    .foregroundStyle(Color.white.opacity(0.25))
+            }
+        }
+        .padding(16)
+        .background(brutalCard(RoundedRectangle(cornerRadius: 10, style: .continuous)))
+    }
+
+    private var periodPicker: some View {
+        HStack(spacing: 4) {
+            ForEach(ChartPeriod.allCases, id: \.self) { p in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { period = p; selectedZoneId = nil }
+                } label: {
+                    Text(p.rawValue)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(period == p ? .black : Color.white.opacity(0.5))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(period == p ? Color.white : Color.white.opacity(0.08),
+                                    in: RoundedRectangle(cornerRadius: 4))
+                }
+            }
+        }
+    }
+
+    private func parseDateFast(_ s: String) -> Date? {
+        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = s.count > 10 ? "yyyy-MM-dd'T'HH:mm:ss" : "yyyy-MM-dd"
+        return df.date(from: String(s.prefix(19)))
     }
 }

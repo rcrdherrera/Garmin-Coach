@@ -1,21 +1,12 @@
 import SwiftUI
 
-// MARK: - Model
-
 struct ChatMessage: Identifiable, Codable {
     let id: UUID
     enum Role: String, Codable { case user, assistant }
     let role: Role
     let text: String
-
-    init(role: Role, text: String) {
-        self.id = UUID()
-        self.role = role
-        self.text = text
-    }
+    init(role: Role, text: String) { self.id = UUID(); self.role = role; self.text = text }
 }
-
-// MARK: - ChatView
 
 struct ChatView: View {
     @State private var messages: [ChatMessage] = []
@@ -36,17 +27,18 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+                Color.brutalBackground.ignoresSafeArea()
 
                 if messages.isEmpty && !isLoading {
-                    emptyState
-                        .transition(.opacity)
+                    emptyState.transition(.opacity)
                 } else {
                     messageList
                 }
             }
-            .navigationTitle("Ask")
+            .navigationTitle("ASK")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 if !messages.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
@@ -54,15 +46,15 @@ struct ChatView: View {
                             withAnimation { messages = []; errorText = nil }
                             clearStorage()
                         }
+                        .foregroundStyle(Color.brutalRed)
                     }
                 }
             }
-            .safeAreaInset(edge: .bottom) {
-                inputBar
-            }
+            .safeAreaInset(edge: .bottom) { inputBar }
             .onAppear { loadMessages() }
             .onTapGesture { inputFocused = false }
         }
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Empty State
@@ -74,23 +66,25 @@ struct ChatView: View {
 
                 VStack(spacing: 12) {
                     ZStack {
-                        Circle()
-                            .fill(.blue.opacity(0.1))
-                            .frame(width: 88, height: 88)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color(white: 0.1))
+                            .frame(width: 72, height: 72)
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.brutalBorder, lineWidth: 1))
                         Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .font(.system(size: 38))
-                            .foregroundStyle(.blue)
+                            .font(.system(size: 30))
+                            .foregroundStyle(Color.brutalRed)
                     }
 
-                    Text("Ask Your Coach")
-                        .font(.title2.weight(.bold))
-                    Text("Get evidence-based answers about\nyour training, recovery, and goals.")
+                    Text("ASK YOUR COACH")
+                        .font(.system(size: 22, weight: .black))
+                        .tracking(1)
+                    Text("Evidence-based answers about\nyour training, recovery, and goals.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.white.opacity(0.45))
                         .multilineTextAlignment(.center)
                 }
 
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
                     ForEach(suggestions, id: \.self) { suggestion in
                         Button {
                             inputText = suggestion
@@ -99,17 +93,17 @@ struct ChatView: View {
                             HStack {
                                 Text(suggestion)
                                     .font(.subheadline)
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.white.opacity(0.8))
                                     .multilineTextAlignment(.leading)
                                 Spacer()
                                 Image(systemName: "arrow.up.right")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.brutalRed)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 13)
-                            .background(.regularMaterial,
-                                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.brutalBorder, lineWidth: 1))
                         }
                     }
                 }
@@ -128,28 +122,27 @@ struct ChatView: View {
             ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(messages) { msg in
-                        MessageBubble(message: msg)
-                            .id(msg.id)
+                        MessageBubble(message: msg).id(msg.id)
                     }
 
                     if isLoading {
-                        HStack {
-                            TypingIndicator()
-                            Spacer()
-                        }
-                        .padding(.horizontal)
-                        .id("typing")
+                        HStack { TypingIndicator(); Spacer() }
+                            .padding(.horizontal)
+                            .id("typing")
                     }
 
                     if let err = errorText {
                         HStack {
-                            Label(err, systemImage: "exclamationmark.triangle.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(.red)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 10)
-                                .background(.red.opacity(0.08),
-                                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            HStack(spacing: 8) {
+                                Rectangle().fill(Color.brutalRed).frame(width: 2)
+                                Text(err)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.white.opacity(0.8))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.brutalRed.opacity(0.3), lineWidth: 1))
                             Spacer()
                         }
                         .padding(.horizontal)
@@ -161,15 +154,11 @@ struct ChatView: View {
                 .padding(.top, 12)
             }
             .onChange(of: messages.count) { _, _ in
-                withAnimation(.easeOut(duration: 0.25)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
+                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
             .onChange(of: isLoading) { _, loading in
                 if loading {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        proxy.scrollTo("typing", anchor: .bottom)
-                    }
+                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("typing", anchor: .bottom) }
                 }
             }
         }
@@ -179,29 +168,28 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(spacing: 0) {
-            Divider()
+            Divider().background(Color.brutalBorder)
             HStack(alignment: .bottom, spacing: 10) {
                 TextField("Ask your coach…", text: $inputText, axis: .vertical)
                     .lineLimit(1...6)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(Color(.secondarySystemFill),
-                                in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.brutalBorder, lineWidth: 1))
+                    .foregroundStyle(.white)
                     .focused($inputFocused)
                     .disabled(isLoading)
                     .toolbar {
                         ToolbarItemGroup(placement: .keyboard) {
                             Spacer()
-                            Button("Done") { inputFocused = false }
+                            Button("Done") { inputFocused = false }.foregroundStyle(Color.brutalRed)
                         }
                     }
 
-                Button {
-                    Task { await send() }
-                } label: {
+                Button { Task { await send() } } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 34))
-                        .foregroundStyle(canSend ? .blue : Color(.tertiaryLabel))
+                        .foregroundStyle(canSend ? Color.brutalRed : Color.white.opacity(0.2))
                         .animation(.easeInOut(duration: 0.15), value: canSend)
                 }
                 .disabled(!canSend)
@@ -210,7 +198,7 @@ struct ChatView: View {
             .padding(.top, 10)
             .padding(.bottom, 12)
         }
-        .background(.regularMaterial)
+        .background(Color.black)
     }
 
     private var canSend: Bool {
@@ -234,7 +222,14 @@ struct ChatView: View {
             withAnimation { messages.append(assistantMsg) }
             saveMessages()
         } catch {
-            withAnimation { errorText = error.localizedDescription }
+            let msg: String
+            if let serverErr = error as? ServerError,
+               case ServerError.httpError(let code, _) = serverErr, code == 404 {
+                msg = "Coach endpoint not found (404). Restart your home server to pick up the latest version."
+            } else {
+                msg = error.localizedDescription
+            }
+            withAnimation { errorText = msg }
         }
     }
 
@@ -252,16 +247,13 @@ struct ChatView: View {
         messages = saved
     }
 
-    private func clearStorage() {
-        UserDefaults.standard.removeObject(forKey: storageKey)
-    }
+    private func clearStorage() { UserDefaults.standard.removeObject(forKey: storageKey) }
 }
 
 // MARK: - Message Bubble
 
 struct MessageBubble: View {
     let message: ChatMessage
-
     private var isUser: Bool { message.role == .user }
 
     var body: some View {
@@ -270,14 +262,18 @@ struct MessageBubble: View {
 
             Text(message.text)
                 .font(.body)
-                .lineSpacing(3)
+                .lineSpacing(4)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
-                    isUser ? Color.blue : Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    isUser ? Color.brutalRed : Color(white: 0.12),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                 )
-                .foregroundStyle(isUser ? .white : .primary)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(isUser ? Color.clear : Color.brutalBorder, lineWidth: 1)
+                )
+                .foregroundStyle(.white)
                 .contextMenu {
                     Button("Copy", systemImage: "doc.on.doc") {
                         UIPasteboard.general.string = message.text
@@ -303,22 +299,16 @@ struct TypingIndicator: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onAppear { animating = true }
         .onDisappear { animating = false }
     }
 
     private func dot(delay: Double) -> some View {
         Circle()
-            .fill(Color.secondary.opacity(0.6))
+            .fill(Color.white.opacity(0.5))
             .frame(width: 8, height: 8)
             .offset(y: animating ? -4 : 4)
-            .animation(
-                .easeInOut(duration: 0.4)
-                    .repeatForever(autoreverses: true)
-                    .delay(delay),
-                value: animating
-            )
+            .animation(.easeInOut(duration: 0.4).repeatForever(autoreverses: true).delay(delay), value: animating)
     }
 }

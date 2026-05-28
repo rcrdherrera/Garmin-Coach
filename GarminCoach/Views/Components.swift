@@ -8,39 +8,40 @@ struct MetricCard: View {
     let value: String
     var unit: String = ""
     var subtitle: String? = nil
-    var color: Color = .blue
+    var color: Color = .brutalRed
 
     var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(color.opacity(0.12))
-                    .frame(width: 44, height: 44)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(color)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.5)
-                HStack(alignment: .lastTextBaseline, spacing: 4) {
-                    Text(value).font(.title2.weight(.semibold))
-                    if !unit.isEmpty {
-                        Text(unit).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                if let sub = subtitle {
-                    Text(sub).font(.caption2).foregroundStyle(.secondary)
+                    .foregroundStyle(color)
+                Text(title.uppercased())
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.4))
+                    .tracking(1)
+            }
+            HStack(alignment: .lastTextBaseline, spacing: 3) {
+                Text(value)
+                    .font(.system(size: 20, weight: .black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if !unit.isEmpty {
+                    Text(unit)
+                        .font(.caption2)
+                        .foregroundStyle(Color.white.opacity(0.4))
                 }
             }
-            Spacer()
+            if let sub = subtitle {
+                Text(sub)
+                    .font(.caption2)
+                    .foregroundStyle(Color.white.opacity(0.3))
+            }
         }
-        .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brutalBorder, lineWidth: 1))
     }
 }
 
@@ -50,24 +51,26 @@ struct SmallMetricCard: View {
     let icon: String
     let title: String
     let value: String
-    var color: Color = .blue
+    var color: Color = .brutalRed
 
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.title3)
+                .font(.subheadline)
                 .foregroundStyle(color)
             Text(value)
-                .font(.callout.weight(.semibold))
-                .minimumScaleFactor(0.7)
+                .font(.system(size: 14, weight: .black))
                 .lineLimit(1)
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .minimumScaleFactor(0.7)
+            Text(title.uppercased())
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.4))
+                .tracking(1)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brutalBorder, lineWidth: 1))
     }
 }
 
@@ -77,17 +80,19 @@ struct ErrorCard: View {
     let message: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Error", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-                .fontWeight(.semibold)
+        HStack(spacing: 10) {
+            Rectangle()
+                .fill(Color.brutalRed)
+                .frame(width: 3)
             Text(message)
-                .foregroundStyle(.secondary)
-                .font(.subheadline)
+                .font(.callout)
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brutalRed.opacity(0.4), lineWidth: 1))
     }
 }
 
@@ -97,15 +102,19 @@ struct LoadingCard: View {
     let message: String
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             ProgressView()
-                .controlSize(.regular)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .progressViewStyle(.circular)
+                .tint(Color.brutalRed)
+            Text(message.uppercased())
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.4))
+                .tracking(1.5)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 60)
+        .padding(40)
+        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brutalBorder, lineWidth: 1))
     }
 }

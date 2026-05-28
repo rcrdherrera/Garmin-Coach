@@ -51,12 +51,14 @@ struct SettingsView: View {
                         isSaved = true
                         isReachable = nil
                     }
+                    .foregroundStyle(Color.brutalRed)
                     .disabled(serverURL.isEmpty || serverToken.isEmpty)
 
                     if isSaved {
                         Button("Test Connection") {
                             Task { await testConnection() }
                         }
+                        .foregroundStyle(Color.brutalRed)
                         .disabled(checking || hasUnsavedChanges)
 
                         if checking {
@@ -69,7 +71,7 @@ struct SettingsView: View {
                                 ok ? "Server reachable" : "Cannot reach server",
                                 systemImage: ok ? "checkmark.circle.fill" : "xmark.circle.fill"
                             )
-                            .foregroundStyle(ok ? .green : .red)
+                            .foregroundStyle(ok ? .green : .brutalRed)
                         }
 
                         Button("Remove Config", role: .destructive) {
@@ -86,11 +88,17 @@ struct SettingsView: View {
                     LabeledContent("Version", value: "2.0")
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle("SETTINGS")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .scrollContentBackground(.hidden)
+            .background(Color.black.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Done") { dismiss() }
-                        .fontWeight(.semibold)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.brutalRed)
                 }
             }
             .onAppear {
@@ -101,6 +109,7 @@ struct SettingsView: View {
                 savedToken  = serverToken
             }
         }
+        .preferredColorScheme(.dark)
     }
 
     private func testConnection() async {

@@ -9,7 +9,7 @@ struct ActivityDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 14) {
+            VStack(spacing: 12) {
                 headerCard
                 metricsGrid
                 if activity.hrZ1s != nil || activity.hrZ2s != nil ||
@@ -20,9 +20,12 @@ struct ActivityDetailView: View {
             }
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.brutalBackground.ignoresSafeArea())
         .navigationTitle(activity.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.black, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Header
@@ -49,7 +52,8 @@ struct ActivityDetailView: View {
             Spacer()
         }
         .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.brutalBorder, lineWidth: 1))
     }
 
     // MARK: - Metrics Grid
@@ -110,7 +114,8 @@ struct ActivityDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.brutalBorder, lineWidth: 1))
     }
 
     // MARK: - HR Zones
@@ -131,7 +136,8 @@ struct ActivityDetailView: View {
             )
         }
         .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.brutalBorder, lineWidth: 1))
     }
 
     // MARK: - Evaluate
@@ -149,7 +155,8 @@ struct ActivityDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(16)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.brutalBorder, lineWidth: 1))
         } else {
             VStack(spacing: 10) {
                 if let err = evaluateError {
@@ -158,16 +165,17 @@ struct ActivityDetailView: View {
                 Button {
                     Task { await runEvaluate() }
                 } label: {
-                    Label(
-                        isEvaluating ? "Evaluating…" : "Evaluate This Session",
-                        systemImage: "chart.xyaxis.line"
-                    )
-                    .font(.subheadline.weight(.semibold))
+                    HStack(spacing: 8) {
+                        if isEvaluating { ProgressView().tint(.white).scaleEffect(0.8) }
+                        else { Image(systemName: "chart.xyaxis.line") }
+                        Text(isEvaluating ? "EVALUATING" : "EVALUATE THIS SESSION")
+                            .font(.system(size: 12, weight: .black))
+                            .tracking(0.5)
+                    }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(Color.accentColor.opacity(0.1))
-                    .foregroundStyle(Color.accentColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .foregroundStyle(.white)
+                    .background(Color.brutalRed, in: RoundedRectangle(cornerRadius: 8))
                 }
                 .disabled(isEvaluating)
             }
@@ -176,7 +184,7 @@ struct ActivityDetailView: View {
 
     // MARK: - Helpers
 
-    private var accentColor: Color { activity.isRun ? .orange : .purple }
+    private var accentColor: Color { activity.isRun ? Color.brutalRed : .teal }
 
     private var formattedDate: String {
         let fmt = DateFormatter()

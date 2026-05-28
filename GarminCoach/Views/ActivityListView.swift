@@ -13,11 +13,15 @@ struct ActivityListView: View {
                 if activities.isEmpty && isLoading {
                     LoadingCard(message: "Loading activities…").padding()
                 } else if activities.isEmpty {
-                    ContentUnavailableView(
-                        "No Activities",
-                        systemImage: "figure.run.circle",
-                        description: Text("Tap refresh to load your training history.")
-                    )
+                    VStack(spacing: 12) {
+                        Text("NO ACTIVITIES")
+                            .font(.system(size: 28, weight: .black))
+                            .foregroundStyle(Color.white.opacity(0.1))
+                        Text("Tap refresh to load your training history.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.white.opacity(0.35))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
                         ForEach(groupedByWeek, id: \.0) { label, acts in
@@ -26,25 +30,32 @@ struct ActivityListView: View {
                                     NavigationLink(destination: ActivityDetailView(activity: activity)) {
                                         ActivityRow(activity: activity)
                                     }
+                                    .listRowBackground(Color(white: 0.08))
                                 }
                             }
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.black)
                 }
             }
-            .navigationTitle("Activities")
+            .navigationTitle("ACTIVITIES")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .background(Color.black.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        Task { await forceSync() }
-                    } label: {
+                    Button { Task { await forceSync() } } label: {
                         Image(systemName: "arrow.clockwise")
+                            .foregroundStyle(isLoading ? Color.white.opacity(0.3) : Color.brutalRed)
                     }
                     .disabled(isLoading)
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .task {
             await CacheManager.shared.syncActivitiesIfNeeded(context: modelContext)
         }
@@ -127,15 +138,16 @@ struct ActivityRow: View {
     let activity: CachedActivity
 
     private var accentColor: Color {
-        activity.isRun ? .orange : .purple
+        activity.isRun ? Color.brutalRed : .teal
     }
 
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 6)
                     .fill(accentColor.opacity(0.12))
-                    .frame(width: 40, height: 40)
+                    .frame(width: 38, height: 38)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(accentColor.opacity(0.25), lineWidth: 1))
                 Image(systemName: activity.activityIcon)
                     .foregroundStyle(accentColor)
                     .font(.callout)
@@ -143,8 +155,9 @@ struct ActivityRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(activity.name)
-                    .font(.subheadline.weight(.medium))
+                    .font(.system(size: 14, weight: .bold))
                     .lineLimit(1)
+                    .foregroundStyle(.white)
 
                 HStack(spacing: 8) {
                     if activity.distanceKm > 0 {
@@ -156,7 +169,7 @@ struct ActivityRow: View {
                     }
                 }
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.white.opacity(0.45))
             }
 
             Spacer()
@@ -164,13 +177,15 @@ struct ActivityRow: View {
             if let load = activity.trainingLoad, load > 0 {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(String(format: "%.0f", load))
-                        .font(.caption.weight(.semibold))
-                    Text("load")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundStyle(.white)
+                    Text("LOAD")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.3))
+                        .tracking(0.5)
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 }

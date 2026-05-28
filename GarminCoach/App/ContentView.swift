@@ -18,5 +18,14 @@ struct ContentView: View {
             ChatView()
                 .tabItem { Label("Ask", systemImage: "bubble.left.and.bubble.right.fill") }
         }
+        .tint(Color.brutalRed)
+        .preferredColorScheme(.dark)
+        .onAppear {
+            let tabAppearance = UITabBarAppearance()
+            tabAppearance.configureWithOpaqueBackground()
+            tabAppearance.backgroundColor = UIColor.black
+            UITabBar.appearance().standardAppearance = tabAppearance
+            UITabBar.appearance().scrollEdgeAppearance = tabAppearance
+        }
     }
 }
