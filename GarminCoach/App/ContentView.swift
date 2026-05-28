@@ -6,8 +6,8 @@ struct ContentView: View {
             StatusView()
                 .tabItem { Label("Today", systemImage: "waveform.path.ecg") }
 
-            ChatView()
-                .tabItem { Label("Ask", systemImage: "bubble.left.and.bubble.right.fill") }
+            ActivityListView()
+                .tabItem { Label("Activities", systemImage: "figure.run.circle") }
 
             CoachingView()
                 .tabItem { Label("Coach", systemImage: "figure.run") }
@@ -15,8 +15,8 @@ struct ContentView: View {
             AnalyzeView()
                 .tabItem { Label("Analyze", systemImage: "chart.bar.xaxis") }
 
-            EvaluateView()
-                .tabItem { Label("Evaluate", systemImage: "checkmark.seal.fill") }
+            ChatView()
+                .tabItem { Label("Ask", systemImage: "bubble.left.and.bubble.right.fill") }
         }
     }
 }

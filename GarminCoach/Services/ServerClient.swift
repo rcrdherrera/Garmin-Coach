@@ -49,6 +49,79 @@ struct ServerStatus: Decodable {
     }
 }
 
+struct TrendSnapshot: Decodable {
+    let date: String
+    let hrv: Int?
+    let hrvWeeklyAvg: Int?
+    let hrvStatus: String?
+    let hrvBaselineLow: Int?
+    let hrvBaselineHigh: Int?
+    let sleepScore: Int?
+    let sleepDurationH: Double?
+    let sleepDeepH: Double?
+    let sleepRemH: Double?
+    let rhr: Int?
+    let bodyBatteryHigh: Int?
+    let bodyBatteryLow: Int?
+    let readinessScore: Int?
+    let readinessLevel: String?
+    let acuteLoad: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case date, hrv
+        case hrvWeeklyAvg = "hrv_weekly_avg"
+        case hrvStatus = "hrv_status"
+        case hrvBaselineLow = "hrv_baseline_low"
+        case hrvBaselineHigh = "hrv_baseline_high"
+        case sleepScore = "sleep_score"
+        case sleepDurationH = "sleep_duration_h"
+        case sleepDeepH = "sleep_deep_h"
+        case sleepRemH = "sleep_rem_h"
+        case rhr
+        case bodyBatteryHigh = "body_battery_high"
+        case bodyBatteryLow = "body_battery_low"
+        case readinessScore = "readiness_score"
+        case readinessLevel = "readiness_level"
+        case acuteLoad = "acute_load"
+    }
+}
+
+struct TrendsResponse: Decodable {
+    let snapshots: [TrendSnapshot]
+}
+
+struct ActivitySummary: Decodable, Identifiable {
+    let activityId: Int
+    let name: String?
+    let type: String?
+    let distanceKm: Double?
+    let durationMin: Double?
+    let startTimeLocal: String?
+    let averageHR: Int?
+    let maxHR: Int?
+    let avgCadence: Double?
+    let calories: Int?
+    let aerobicTE: Double?
+    let trainingLoad: Double?
+    let avgSpeedMs: Double?
+    let hrZ1s: Double?
+    let hrZ2s: Double?
+    let hrZ3s: Double?
+    let hrZ4s: Double?
+    let hrZ5s: Double?
+
+    var id: Int { activityId }
+
+    enum CodingKeys: String, CodingKey {
+        case activityId, name, type
+        case distanceKm = "distance_km"
+        case durationMin = "duration_min"
+        case startTimeLocal, averageHR, maxHR, avgCadence, calories
+        case aerobicTE, trainingLoad, avgSpeedMs
+        case hrZ1s, hrZ2s, hrZ3s, hrZ4s, hrZ5s
+    }
+}
+
 struct AnalyzeResponse: Decodable {
     let period: String
     let report: String
@@ -80,11 +153,25 @@ struct UploadedWorkout: Decodable, Identifiable {
 }
 
 struct EvaluateResponse: Decodable {
+    struct Metrics: Decodable {
+        let acwr: Double?
+        let ctl: Double?
+        let atl: Double?
+        let tsb: Double?
+        let acuteLoad7d: Double?
+        let chronicWeeklyAvg: Double?
+        enum CodingKeys: String, CodingKey {
+            case acwr, ctl, atl, tsb
+            case acuteLoad7d = "acute_load_7d"
+            case chronicWeeklyAvg = "chronic_weekly_avg"
+        }
+    }
     let activityId: Int
     let date: String
+    let metrics: Metrics?
     let report: String
     enum CodingKeys: String, CodingKey {
-        case activityId = "activity_id", date, report
+        case activityId = "activity_id", date, metrics, report
     }
 }
 
@@ -164,6 +251,14 @@ class ServerClient {
 
     func getStatus() async throws -> ServerStatus {
         try await request("/status")
+    }
+
+    func getTrends(days: Int = 30) async throws -> TrendsResponse {
+        try await request("/trends?days=\(days)")
+    }
+
+    func getActivities(limit: Int = 30) async throws -> [ActivitySummary] {
+        try await request("/activities?limit=\(limit)")
     }
 
     func analyze(period: String) async throws -> AnalyzeResponse {

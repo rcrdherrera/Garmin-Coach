@@ -1,16 +1,24 @@
 import SwiftUI
+import SwiftData
 
 struct StatusView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \DailySnapshot.date, order: .reverse) private var snapshots: [DailySnapshot]
+
     @State private var status: ServerStatus?
     @State private var isLoading = false
     @State private var error: String?
     @State private var lastUpdated: Date?
     @State private var showSettings = false
 
+    private var trendSnapshots: [DailySnapshot] {
+        Array(snapshots.prefix(14)).reversed()
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 14) {
+                VStack(spacing: 16) {
                     if let updated = lastUpdated {
                         Text("Updated \(updated.formatted(.relative(presentation: .named)))")
                             .font(.caption2)
@@ -18,12 +26,60 @@ struct StatusView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
-                    if isLoading {
+                    if isLoading && status == nil {
                         LoadingCard(message: "Fetching Garmin data…")
-                    } else if let err = error {
-                        ErrorCard(message: err)
+                    } else if let err = error, status == nil {
+                        VStack(spacing: 16) {
+                            ErrorCard(message: err)
+                            if !trendSnapshots.isEmpty {
+                                TrendsSection(snapshots: trendSnapshots)
+                            }
+                        }
                     } else if let s = status {
-                        statusCards(s)
+                        // Hero: Recovery Ring
+                        RecoveryRingCard(status: s)
+
+                        // Body Battery + Sleep
+                        if s.bodyBattery != nil || s.sleep != nil {
+                            HStack(spacing: 12) {
+                                if let bb = s.bodyBattery {
+                                    BodyBatteryCard(battery: bb)
+                                }
+                                if let sleep = s.sleep {
+                                    SleepCard(sleep: sleep)
+                                }
+                            }
+                        }
+
+                        // Stress + Training Status
+                        HStack(spacing: 8) {
+                            if let stress = s.stress {
+                                SmallMetricCard(
+                                    icon: "brain.fill",
+                                    title: "Stress",
+                                    value: "\(stress)",
+                                    color: stressColor(stress)
+                                )
+                            }
+                            if let ts = s.trainingStatus {
+                                SmallMetricCard(
+                                    icon: "figure.run",
+                                    title: "Status",
+                                    value: ts,
+                                    color: .orange
+                                )
+                            }
+                        }
+
+                        // HRV context (baseline + status)
+                        if let hrv = s.hrv, hrv.baselineLow != nil || hrv.weeklyAvg != nil {
+                            HRVContextCard(hrv: hrv)
+                        }
+
+                        // 14-day trends from cache
+                        if !trendSnapshots.isEmpty {
+                            TrendsSection(snapshots: trendSnapshots)
+                        }
                     } else {
                         ContentUnavailableView(
                             "No Data",
@@ -31,6 +87,10 @@ struct StatusView: View {
                             description: Text("Tap refresh to load today's metrics.")
                         )
                         .padding(.top, 40)
+
+                        if !trendSnapshots.isEmpty {
+                            TrendsSection(snapshots: trendSnapshots)
+                        }
                     }
                 }
                 .padding()
@@ -54,71 +114,11 @@ struct StatusView: View {
                 SettingsView()
             }
         }
-        .task { await load() }
-    }
-
-    // MARK: - Cards
-
-    @ViewBuilder
-    private func statusCards(_ s: ServerStatus) -> some View {
-        if let r = s.readiness {
-            MetricCard(
-                icon: "bolt.heart.fill",
-                title: "Readiness",
-                value: r.score.map { "\($0)" } ?? "—",
-                unit: "/ 100",
-                subtitle: [r.level?.capitalized, r.feedback].compactMap { $0 }.joined(separator: "  ·  ").nonEmpty,
-                color: readinessColor(r.score)
-            )
-        }
-
-        if let bb = s.bodyBattery {
-            MetricCard(
-                icon: "battery.100.bolt",
-                title: "Body Battery",
-                value: bb.current.map { "\($0)" } ?? "—",
-                subtitle: "High \(bb.high ?? 0)  ·  Low \(bb.low ?? 0)",
-                color: batteryColor(bb.current)
-            )
-        }
-
-        if let hrv = s.hrv {
-            MetricCard(
-                icon: "waveform.path.ecg.rectangle",
-                title: "HRV",
-                value: hrv.lastNight.map { "\($0)" } ?? "—",
-                unit: "ms",
-                subtitle: [hrv.status?.capitalized, "Baseline \(hrv.baselineLow ?? 0)–\(hrv.baselineHigh ?? 0) ms"]
-                    .compactMap { $0 }.joined(separator: "  ·  "),
-                color: hrvColor(hrv.status)
-            )
-        }
-
-        if let sleep = s.sleep {
-            MetricCard(
-                icon: "moon.zzz.fill",
-                title: "Sleep",
-                value: sleep.durationH.map { String(format: "%.1f", $0) } ?? "—",
-                unit: "h",
-                subtitle: "Deep \(sleep.deepH.map { String(format: "%.1fh", $0) } ?? "—")  ·  REM \(sleep.remH.map { String(format: "%.1fh", $0) } ?? "—")  ·  Score \(sleep.score ?? 0)",
-                color: .indigo
-            )
-        }
-
-        HStack(spacing: 10) {
-            if let rhr = s.rhr {
-                SmallMetricCard(icon: "heart.fill",  title: "RHR",    value: "\(rhr) bpm",   color: .red)
-            }
-            if let stress = s.stress {
-                SmallMetricCard(icon: "brain.fill",  title: "Stress", value: "\(stress)",    color: stressColor(stress))
-            }
-            if let ts = s.trainingStatus {
-                SmallMetricCard(icon: "figure.run",  title: "Status", value: ts.capitalized, color: .orange)
-            }
+        .task {
+            await load()
+            await CacheManager.shared.syncTrendsIfNeeded(context: modelContext)
         }
     }
-
-    // MARK: - Load
 
     private func load() async {
         isLoading = true; error = nil
@@ -131,33 +131,6 @@ struct StatusView: View {
         }
     }
 
-    // MARK: - Colors
-
-    private func readinessColor(_ score: Int?) -> Color {
-        switch score ?? 0 {
-        case 80...:   return .green
-        case 60..<80: return .blue
-        case 40..<60: return .orange
-        default:      return .red
-        }
-    }
-
-    private func batteryColor(_ level: Int?) -> Color {
-        switch level ?? 0 {
-        case 60...:   return .green
-        case 30..<60: return .yellow
-        default:      return .red
-        }
-    }
-
-    private func hrvColor(_ status: String?) -> Color {
-        switch status?.uppercased() {
-        case "BALANCED":   return .green
-        case "UNBALANCED": return .orange
-        default:           return .red
-        }
-    }
-
     private func stressColor(_ stress: Int) -> Color {
         switch stress {
         case ..<26:   return .green
@@ -166,8 +139,4 @@ struct StatusView: View {
         default:      return .red
         }
     }
-}
-
-private extension String {
-    var nonEmpty: Self? { isEmpty ? nil : self }
 }

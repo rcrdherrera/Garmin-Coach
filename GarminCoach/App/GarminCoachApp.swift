@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 @main
 struct GarminCoachApp: App {
@@ -6,5 +7,6 @@ struct GarminCoachApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: [DailySnapshot.self, CachedActivity.self])
     }
 }
