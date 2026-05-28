@@ -431,17 +431,20 @@ struct HRZonesChart: View {
     }
 
     private var zones: [Zone] {
-        let raw = [
-            (id: "Z1", label: "Z1  <147",    secs: z1s ?? 0, color: Color.white.opacity(0.3)),
-            (id: "Z2", label: "Z2  147–162",  secs: z2s ?? 0, color: Color.teal),
-            (id: "Z3", label: "Z3  163–173",  secs: z3s ?? 0, color: Color.yellow),
-            (id: "Z4", label: "Z4  174–181",  secs: z4s ?? 0, color: Color.orange),
-            (id: "Z5", label: "Z5  182+",     secs: z5s ?? 0, color: Color.brutalRed),
+        typealias Raw = (id: String, label: String, secs: Double, color: Color)
+        let raw: [Raw] = [
+            ("Z1", "Z1  <147",    z1s ?? 0, Color.white.opacity(0.3)),
+            ("Z2", "Z2  147–162", z2s ?? 0, Color.teal),
+            ("Z3", "Z3  163–173", z3s ?? 0, Color.yellow),
+            ("Z4", "Z4  174–181", z4s ?? 0, Color.orange),
+            ("Z5", "Z5  182+",    z5s ?? 0, Color.brutalRed),
         ]
-        let total = raw.map { $0.secs }.reduce(0, +)
-        return raw.filter { $0.secs > 0.1 }.map {
-            Zone(id: $0.id, label: $0.label, minutes: $0.secs / 60,
-                 pct: total > 0 ? $0.secs / total * 100 : 0, color: $0.color)
+        let total = raw.map { $0.secs }.reduce(0.0, +)
+        let active = raw.filter { $0.secs > 0.1 }
+        return active.map { r in
+            let mins = r.secs / 60
+            let pct  = total > 0 ? r.secs / total * 100 : 0
+            return Zone(id: r.id, label: r.label, minutes: mins, pct: pct, color: r.color)
         }
     }
 
