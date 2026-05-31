@@ -659,9 +659,18 @@ struct WeeklyMileageCard: View {
     }
 
     private func parseDateFast(_ s: String) -> Date? {
-        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = s.count > 10 ? "yyyy-MM-dd'T'HH:mm:ss" : "yyyy-MM-dd"
-        return df.date(from: String(s.prefix(19)))
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        let trimmed = String(s.prefix(19))
+        if trimmed.count > 10 {
+            // Garmin DB uses space separator; ISO uses T — try both
+            df.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            if let d = df.date(from: trimmed) { return d }
+            df.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            return df.date(from: trimmed)
+        }
+        df.dateFormat = "yyyy-MM-dd"
+        return df.date(from: trimmed)
     }
 }
 
@@ -809,8 +818,17 @@ struct HRZonesAggregateCard: View {
     }
 
     private func parseDateFast(_ s: String) -> Date? {
-        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = s.count > 10 ? "yyyy-MM-dd'T'HH:mm:ss" : "yyyy-MM-dd"
-        return df.date(from: String(s.prefix(19)))
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        let trimmed = String(s.prefix(19))
+        if trimmed.count > 10 {
+            // Garmin DB uses space separator; ISO uses T — try both
+            df.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            if let d = df.date(from: trimmed) { return d }
+            df.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            return df.date(from: trimmed)
+        }
+        df.dateFormat = "yyyy-MM-dd"
+        return df.date(from: trimmed)
     }
 }
