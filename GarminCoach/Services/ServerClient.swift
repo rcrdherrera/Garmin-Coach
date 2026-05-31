@@ -125,6 +125,13 @@ struct ActivitySummary: Decodable, Identifiable {
 struct AnalyzeResponse: Decodable {
     let period: String
     let report: String
+    let conversationId: Int?
+    let title: String?
+
+    enum CodingKeys: String, CodingKey {
+        case period, report, title
+        case conversationId = "conversation_id"
+    }
 }
 
 struct CoachResponse: Decodable {
@@ -132,9 +139,13 @@ struct CoachResponse: Decodable {
     let type: String
     let brief: String
     let uploadedWorkouts: [UploadedWorkout]?
+    let conversationId: Int?
+    let title: String?
 
     enum CodingKeys: String, CodingKey {
-        case date, type, brief, uploadedWorkouts = "uploaded_workouts"
+        case date, type, brief, title
+        case uploadedWorkouts = "uploaded_workouts"
+        case conversationId = "conversation_id"
     }
 }
 
@@ -217,7 +228,9 @@ class ServerClient {
         guard !baseURL.isEmpty, !token.isEmpty else {
             throw ServerError.notConfigured
         }
-        guard let url = URL(string: baseURL + path) else {
+        // Strip trailing slash to prevent double-slash URLs (e.g. http://host:8765//chat)
+        let base = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        guard let url = URL(string: base + path) else {
             throw ServerError.notConfigured
         }
 
@@ -275,9 +288,25 @@ class ServerClient {
         return try await request("/evaluate", method: "POST", body: body, timeout: 120)
     }
 
-    func chat(message: String) async throws -> String {
-        let resp: ChatResponse = try await request("/chat", method: "POST", body: ["message": message], timeout: 60)
-        return resp.response
+    func sendChat(conversationId: Int?, message: String, kind: String = "ask") async throws -> ChatTurnResponse {
+        var body: [String: Any] = ["message": message, "kind": kind]
+        if let cid = conversationId { body["conversation_id"] = cid }
+        return try await request("/chat", method: "POST", body: body, timeout: 60)
+    }
+
+    func getConversations(kind: String? = nil) async throws -> [ConversationSummary] {
+        let path = kind.map { "/conversations?kind=\($0)" } ?? "/conversations"
+        let resp: ConversationListResponse = try await request(path)
+        return resp.conversations
+    }
+
+    func getConversation(id: Int) async throws -> ConversationDetail {
+        try await request("/conversations/\(id)")
+    }
+
+    func deleteConversation(id: Int) async throws {
+        struct Empty: Decodable {}
+        let _: Empty = try await request("/conversations/\(id)", method: "DELETE")
     }
 
     func isReachable() async -> Bool {

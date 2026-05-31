@@ -513,7 +513,7 @@ struct WeeklyMileageCard: View {
             (parseDateFast(a.startTimeLocal) ?? .distantPast) >= cutoff
         }
 
-        if filtered.isEmpty { return mockPoints }
+        if filtered.isEmpty { return [] }
 
         var cal = Calendar(identifier: .gregorian)
         cal.firstWeekday = 2
@@ -528,19 +528,6 @@ struct WeeklyMileageCard: View {
         return buckets
             .sorted { $0.key < $1.key }
             .map { WeekPoint(id: $0.key, weekStart: $0.value.0, km: $0.value.1) }
-    }
-
-    private var mockPoints: [WeekPoint] {
-        let vols: [Double] = [0, 8, 12, 10, 14, 16, 12, 18, 15, 20, 17, 22]
-        var cal = Calendar(identifier: .gregorian)
-        cal.firstWeekday = 2
-        return vols.enumerated().compactMap { (i, km) in
-            guard let d = cal.date(byAdding: .weekOfYear, value: -(vols.count - 1 - i), to: .now) else { return nil }
-            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: d)
-            let key = "\(comps.yearForWeekOfYear ?? 0)-W\(String(format: "%02d", comps.weekOfYear ?? 0))"
-            let monday = cal.date(from: comps) ?? d
-            return WeekPoint(id: key, weekStart: monday, km: km)
-        }
     }
 
     private var selectedPoint: WeekPoint? {
@@ -574,7 +561,13 @@ struct WeeklyMileageCard: View {
                 periodPicker
             }
 
-            if points.count >= 2 {
+            if points.isEmpty {
+                Text("No runs in this period — sync to populate")
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.3))
+                    .frame(height: 100, alignment: .center)
+                    .frame(maxWidth: .infinity)
+            } else if points.count >= 2 {
                 Chart(points) { pt in
                     AreaMark(x: .value("Week", pt.weekStart), y: .value("km", pt.km))
                         .foregroundStyle(LinearGradient(
@@ -620,17 +613,11 @@ struct WeeklyMileageCard: View {
                 .chartXSelection(value: $selectedWeek.animation())
                 .frame(height: 160)
             } else {
-                Text("Not enough data")
+                Text("Only one run in this period — more data needed for a chart")
                     .font(.caption)
                     .foregroundStyle(Color.white.opacity(0.3))
                     .frame(height: 100, alignment: .center)
                     .frame(maxWidth: .infinity)
-            }
-
-            if activities.isEmpty {
-                Text("Showing sample data — sync activities from server to see real data.")
-                    .font(.caption2)
-                    .foregroundStyle(Color.white.opacity(0.25))
             }
         }
         .padding(16)
@@ -708,29 +695,20 @@ struct HRZonesAggregateCard: View {
         let z5 = filtered.compactMap { $0.hrZ5s }.reduce(0, +) / 60
         let total = z1 + z2 + z3 + z4 + z5
 
-        let useMock = total < 1
-        let m1 = useMock ? 20.0 : z1
-        let m2 = useMock ? 65.0 : z2
-        let m3 = useMock ? 10.0 : z3
-        let m4 = useMock ? 4.0  : z4
-        let m5 = useMock ? 1.0  : z5
-        let tot = m1 + m2 + m3 + m4 + m5
+        guard total >= 1 else { return [] }
 
-        func pct(_ v: Double) -> Double { tot > 0 ? v / tot * 100 : 0 }
+        func pct(_ v: Double) -> Double { total > 0 ? v / total * 100 : 0 }
 
         return [
-            ZoneData(id: "Z1", label: "Z1", bpmRange: "<147",    minutes: m1, pct: pct(m1), color: Color.white.opacity(0.35)),
-            ZoneData(id: "Z2", label: "Z2", bpmRange: "147–162", minutes: m2, pct: pct(m2), color: .teal),
-            ZoneData(id: "Z3", label: "Z3", bpmRange: "163–173", minutes: m3, pct: pct(m3), color: .yellow),
-            ZoneData(id: "Z4", label: "Z4", bpmRange: "174–181", minutes: m4, pct: pct(m4), color: .orange),
-            ZoneData(id: "Z5", label: "Z5", bpmRange: "182+",    minutes: m5, pct: pct(m5), color: .brutalRed),
+            ZoneData(id: "Z1", label: "Z1", bpmRange: "<147",    minutes: z1, pct: pct(z1), color: Color.white.opacity(0.35)),
+            ZoneData(id: "Z2", label: "Z2", bpmRange: "147–162", minutes: z2, pct: pct(z2), color: .teal),
+            ZoneData(id: "Z3", label: "Z3", bpmRange: "163–173", minutes: z3, pct: pct(z3), color: .yellow),
+            ZoneData(id: "Z4", label: "Z4", bpmRange: "174–181", minutes: z4, pct: pct(z4), color: .orange),
+            ZoneData(id: "Z5", label: "Z5", bpmRange: "182+",    minutes: z5, pct: pct(z5), color: .brutalRed),
         ].filter { $0.minutes >= 0.1 }
     }
 
-    private var isMock: Bool {
-        activities.isEmpty ||
-        activities.filter { ($0.hrZ1s ?? 0) + ($0.hrZ2s ?? 0) > 0 }.isEmpty
-    }
+    private var hasZoneData: Bool { !zoneData.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -757,53 +735,55 @@ struct HRZonesAggregateCard: View {
                 periodPicker
             }
 
-            Chart(zoneData) { z in
-                BarMark(x: .value("Minutes", z.minutes), y: .value("Zone", z.label))
-                    .foregroundStyle(selectedZoneId == nil || selectedZoneId == z.id ? z.color : z.color.opacity(0.3))
-                    .cornerRadius(3)
-                    .annotation(position: .trailing, alignment: .leading, spacing: 6) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(z.bpmRange)
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(Color.white.opacity(0.35))
-                            Text(String(format: "%.0fm · %.0f%%", z.minutes, z.pct))
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(Color.white.opacity(0.5))
-                        }
-                    }
-            }
-            .chartXAxis(.hidden)
-            .chartYAxis {
-                AxisMarks { val in
-                    AxisValueLabel {
-                        if let s = val.as(String.self) {
-                            Text(s)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(Color.white.opacity(0.5))
-                        }
-                    }
-                }
-            }
-            .chartOverlay { proxy in
-                GeometryReader { geo in
-                    Rectangle().fill(.clear).contentShape(Rectangle())
-                        .gesture(DragGesture(minimumDistance: 0).onChanged { val in
-                            let origin = geo[proxy.plotFrame!].origin
-                            let loc = CGPoint(x: val.location.x - origin.x, y: val.location.y - origin.y)
-                            if let label: String = proxy.value(atY: loc.y) {
-                                selectedZoneId = label
+            if hasZoneData {
+                Chart(zoneData) { z in
+                    BarMark(x: .value("Minutes", z.minutes), y: .value("Zone", z.label))
+                        .foregroundStyle(selectedZoneId == nil || selectedZoneId == z.id ? z.color : z.color.opacity(0.3))
+                        .cornerRadius(3)
+                        .annotation(position: .trailing, alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(z.bpmRange)
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(Color.white.opacity(0.35))
+                                Text(String(format: "%.0fm · %.0f%%", z.minutes, z.pct))
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(Color.white.opacity(0.5))
                             }
-                        }.onEnded { _ in
-                            selectedZoneId = nil
-                        })
+                        }
                 }
-            }
-            .frame(height: CGFloat(zoneData.count) * 44)
-
-            if isMock {
-                Text("Showing sample distribution — sync activities to see real zone data.")
-                    .font(.caption2)
-                    .foregroundStyle(Color.white.opacity(0.25))
+                .chartXAxis(.hidden)
+                .chartYAxis {
+                    AxisMarks { val in
+                        AxisValueLabel {
+                            if let s = val.as(String.self) {
+                                Text(s)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(Color.white.opacity(0.5))
+                            }
+                        }
+                    }
+                }
+                .chartOverlay { proxy in
+                    GeometryReader { geo in
+                        Rectangle().fill(.clear).contentShape(Rectangle())
+                            .gesture(DragGesture(minimumDistance: 0).onChanged { val in
+                                let origin = geo[proxy.plotFrame!].origin
+                                let loc = CGPoint(x: val.location.x - origin.x, y: val.location.y - origin.y)
+                                if let label: String = proxy.value(atY: loc.y) {
+                                    selectedZoneId = label
+                                }
+                            }.onEnded { _ in
+                                selectedZoneId = nil
+                            })
+                    }
+                }
+                .frame(height: CGFloat(zoneData.count) * 44)
+            } else {
+                Text("No HR zone data in this period — sync activities to populate")
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.3))
+                    .frame(height: 100, alignment: .center)
+                    .frame(maxWidth: .infinity)
             }
         }
         .padding(16)

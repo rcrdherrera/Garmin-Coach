@@ -83,7 +83,7 @@ struct SettingsView: View {
                 }
 
                 Section("About") {
-                    LabeledContent("Coaching Engine", value: "Claude Opus 4.7 (server-side)")
+                    LabeledContent("Coaching Engine", value: "Claude Opus 4.8 (server-side)")
                     LabeledContent("Garmin Data", value: "Live API + SQLite history")
                     LabeledContent("Version", value: "2.0")
                 }

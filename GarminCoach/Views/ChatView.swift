@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - Shared message type (used by Coach, Analyze, and Ask tabs)
+
 struct ChatMessage: Identifiable, Codable {
     let id: UUID
     enum Role: String, Codable { case user, assistant }
@@ -8,14 +10,16 @@ struct ChatMessage: Identifiable, Codable {
     init(role: Role, text: String) { self.id = UUID(); self.role = role; self.text = text }
 }
 
+// MARK: - Ask (Chat) tab
+
 struct ChatView: View {
+    @State private var currentConversationId: Int?
     @State private var messages: [ChatMessage] = []
     @State private var inputText = ""
     @State private var isLoading = false
     @State private var errorText: String?
+    @State private var showHistory = false
     @FocusState private var inputFocused: Bool
-
-    private let storageKey = "garmincoach_chat_history"
 
     private let suggestions = [
         "How's my training load this week?",
@@ -40,19 +44,43 @@ struct ChatView: View {
             .toolbarBackground(Color.black, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showHistory = true
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundStyle(Color.white.opacity(0.6))
+                    }
+                }
                 if !messages.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
-                        Button("Clear") {
-                            withAnimation { messages = []; errorText = nil }
-                            clearStorage()
+                        Button("New") {
+                            withAnimation {
+                                messages = []
+                                errorText = nil
+                                currentConversationId = nil
+                            }
                         }
                         .foregroundStyle(Color.brutalRed)
+                        .font(.system(size: 14, weight: .bold))
                     }
                 }
             }
             .safeAreaInset(edge: .bottom) { inputBar }
-            .onAppear { loadMessages() }
             .onTapGesture { inputFocused = false }
+            .sheet(isPresented: $showHistory) {
+                ConversationHistoryList(
+                    kind: "ask",
+                    onSelect: { conv in Task { await loadConversation(id: conv.id) } },
+                    onNew: {
+                        withAnimation {
+                            messages = []
+                            errorText = nil
+                            currentConversationId = nil
+                        }
+                    }
+                )
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -212,45 +240,41 @@ struct ChatView: View {
         guard !text.isEmpty else { return }
         inputText = ""
         errorText = nil
-        let userMsg = ChatMessage(role: .user, text: text)
-        withAnimation { messages.append(userMsg) }
+        withAnimation { messages.append(ChatMessage(role: .user, text: text)) }
         isLoading = true
         defer { isLoading = false }
         do {
-            let response = try await ServerClient.shared.chat(message: text)
-            let assistantMsg = ChatMessage(role: .assistant, text: response)
-            withAnimation { messages.append(assistantMsg) }
-            saveMessages()
+            let resp = try await ServerClient.shared.sendChat(
+                conversationId: currentConversationId,
+                message: text,
+                kind: "ask"
+            )
+            currentConversationId = resp.conversationId
+            withAnimation { messages.append(ChatMessage(role: .assistant, text: resp.message.content)) }
         } catch {
-            let msg: String
-            if let serverErr = error as? ServerError,
-               case ServerError.httpError(let code, _) = serverErr, code == 404 {
-                msg = "Coach endpoint not found (404). Restart your home server to pick up the latest version."
-            } else {
-                msg = error.localizedDescription
-            }
-            withAnimation { errorText = msg }
+            withAnimation { errorText = error.localizedDescription }
         }
     }
 
-    // MARK: - Persistence
+    // MARK: - Load historical conversation
 
-    private func saveMessages() {
-        guard let data = try? JSONEncoder().encode(messages) else { return }
-        UserDefaults.standard.set(data, forKey: storageKey)
+    private func loadConversation(id: Int) async {
+        isLoading = true
+        defer { isLoading = false }
+        errorText = nil
+        do {
+            let detail = try await ServerClient.shared.getConversation(id: id)
+            currentConversationId = detail.id
+            messages = detail.messages.map {
+                ChatMessage(role: $0.isUser ? .user : .assistant, text: $0.content)
+            }
+        } catch {
+            errorText = error.localizedDescription
+        }
     }
-
-    private func loadMessages() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let saved = try? JSONDecoder().decode([ChatMessage].self, from: data)
-        else { return }
-        messages = saved
-    }
-
-    private func clearStorage() { UserDefaults.standard.removeObject(forKey: storageKey) }
 }
 
-// MARK: - Message Bubble
+// MARK: - Message Bubble (shared with CoachingView and AnalyzeView)
 
 struct MessageBubble: View {
     let message: ChatMessage
@@ -260,25 +284,33 @@ struct MessageBubble: View {
         HStack(alignment: .bottom) {
             if isUser { Spacer(minLength: 60) }
 
-            Text(message.text)
-                .font(.body)
-                .lineSpacing(4)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    isUser ? Color.brutalRed : Color(white: 0.12),
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(isUser ? Color.clear : Color.brutalBorder, lineWidth: 1)
-                )
-                .foregroundStyle(.white)
-                .contextMenu {
-                    Button("Copy", systemImage: "doc.on.doc") {
-                        UIPasteboard.general.string = message.text
-                    }
+            // Render markdown in assistant messages so formatting is human-readable
+            Group {
+                if isUser {
+                    Text(message.text)
+                        .font(.body)
+                } else {
+                    Text(LocalizedStringKey(message.text))
+                        .font(.body)
                 }
+            }
+            .lineSpacing(4)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                isUser ? Color.brutalRed : Color(white: 0.12),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isUser ? Color.clear : Color.brutalBorder, lineWidth: 1)
+            )
+            .foregroundStyle(.white)
+            .contextMenu {
+                Button("Copy", systemImage: "doc.on.doc") {
+                    UIPasteboard.general.string = message.text
+                }
+            }
 
             if !isUser { Spacer(minLength: 60) }
         }
@@ -286,7 +318,7 @@ struct MessageBubble: View {
     }
 }
 
-// MARK: - Typing Indicator
+// MARK: - Typing Indicator (shared)
 
 struct TypingIndicator: View {
     @State private var animating = false
@@ -310,5 +342,135 @@ struct TypingIndicator: View {
             .frame(width: 8, height: 8)
             .offset(y: animating ? -4 : 4)
             .animation(.easeInOut(duration: 0.4).repeatForever(autoreverses: true).delay(delay), value: animating)
+    }
+}
+
+// MARK: - Shared message list + input bar view (used by Coach and Analyze tabs)
+
+struct ConversationThreadView: View {
+    let kind: String
+    @Binding var conversationId: Int?
+    @Binding var messages: [ChatMessage]
+
+    @State private var inputText = ""
+    @State private var isLoading = false
+    @State private var errorText: String?
+    @FocusState private var inputFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            messageList
+            inputBar
+        }
+    }
+
+    // MARK: - Message list
+
+    private var messageList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(messages) { msg in
+                        MessageBubble(message: msg).id(msg.id)
+                    }
+
+                    if isLoading {
+                        HStack { TypingIndicator(); Spacer() }
+                            .padding(.horizontal)
+                            .id("typing")
+                    }
+
+                    if let err = errorText {
+                        HStack {
+                            HStack(spacing: 8) {
+                                Rectangle().fill(Color.brutalRed).frame(width: 2)
+                                Text(err)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.white.opacity(0.8))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.brutalRed.opacity(0.3), lineWidth: 1))
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    Color.clear.frame(height: 4).id("bottom")
+                }
+                .padding(.top, 8)
+            }
+            .onChange(of: messages.count) { _, _ in
+                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
+            }
+            .onChange(of: isLoading) { _, loading in
+                if loading {
+                    withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("typing", anchor: .bottom) }
+                }
+            }
+        }
+    }
+
+    // MARK: - Input bar
+
+    private var inputBar: some View {
+        VStack(spacing: 0) {
+            Divider().background(Color.brutalBorder)
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Ask a follow-up…", text: $inputText, axis: .vertical)
+                    .lineLimit(1...5)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color(white: 0.1), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.brutalBorder, lineWidth: 1))
+                    .foregroundStyle(.white)
+                    .focused($inputFocused)
+                    .disabled(isLoading)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { inputFocused = false }.foregroundStyle(Color.brutalRed)
+                        }
+                    }
+
+                Button { Task { await send() } } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 34))
+                        .foregroundStyle(canSend ? Color.brutalRed : Color.white.opacity(0.2))
+                        .animation(.easeInOut(duration: 0.15), value: canSend)
+                }
+                .disabled(!canSend)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 12)
+        }
+        .background(Color.black)
+    }
+
+    private var canSend: Bool {
+        !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading
+    }
+
+    private func send() async {
+        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        inputText = ""
+        errorText = nil
+        withAnimation { messages.append(ChatMessage(role: .user, text: text)) }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let resp = try await ServerClient.shared.sendChat(
+                conversationId: conversationId,
+                message: text,
+                kind: kind
+            )
+            conversationId = resp.conversationId
+            withAnimation { messages.append(ChatMessage(role: .assistant, text: resp.message.content)) }
+        } catch {
+            withAnimation { errorText = error.localizedDescription }
+        }
     }
 }

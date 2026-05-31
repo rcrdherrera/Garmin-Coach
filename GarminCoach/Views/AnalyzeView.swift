@@ -15,11 +15,15 @@ struct AnalyzeView: View {
     @State private var customStart: Date = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
     @State private var customEnd       = Date()
 
-    @State private var report        = ""
-    @State private var analyzedLabel = ""
     @State private var isLoading     = false
     @State private var error: String?
-    @State private var lastUpdated: Date?
+    @State private var showHistory   = false
+
+    // Conversation state
+    @State private var conversationId: Int?
+    @State private var messages: [ChatMessage] = []
+
+    private var hasReport: Bool { !messages.isEmpty }
 
     // MARK: - Computed period
 
@@ -70,25 +74,42 @@ struct AnalyzeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 12) {
+            VStack(spacing: 0) {
+                if hasReport {
+                    // Active conversation: period picker as compact header + thread below
                     modePicker
+                        .padding(.horizontal)
+                        .padding(.vertical, 10)
+                        .background(Color.black)
+                        .overlay(alignment: .bottom) { Divider().background(Color.brutalBorder) }
 
-                    if let mode {
-                        dateCard(mode: mode)
-                    }
+                    ConversationThreadView(
+                        kind: "analyze",
+                        conversationId: $conversationId,
+                        messages: $messages
+                    )
+                } else {
+                    // No report yet: scrollable setup area
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            modePicker
 
-                    if isLoading {
-                        loadingCard
-                    } else if let err = error {
-                        errorCard(err)
-                    } else if !report.isEmpty {
-                        reportCard
-                    } else {
-                        emptyState
+                            if let mode {
+                                dateCard(mode: mode)
+                            }
+
+                            if isLoading {
+                                loadingCard
+                            } else if let err = error {
+                                errorCard(err)
+                            } else {
+                                emptyState
+                            }
+                        }
+                        .padding()
                     }
+                    .background(Color.brutalBackground.ignoresSafeArea())
                 }
-                .padding()
             }
             .background(Color.brutalBackground.ignoresSafeArea())
             .navigationTitle("ANALYZE")
@@ -96,6 +117,12 @@ struct AnalyzeView: View {
             .toolbarBackground(Color.black, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showHistory = true } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundStyle(Color.white.opacity(0.6))
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { Task { await analyze() } } label: {
                         if isLoading {
@@ -111,6 +138,13 @@ struct AnalyzeView: View {
                     }
                     .disabled(isLoading || !canAnalyze)
                 }
+            }
+            .sheet(isPresented: $showHistory) {
+                ConversationHistoryList(
+                    kind: "analyze",
+                    onSelect: { conv in Task { await loadConversation(id: conv.id) } },
+                    onNew: { clearResults() }
+                )
             }
         }
         .preferredColorScheme(.dark)
@@ -197,7 +231,7 @@ struct AnalyzeView: View {
         }
     }
 
-    // MARK: - Loading
+    // MARK: - Loading / Error / Empty
 
     private var loadingCard: some View {
         VStack(spacing: 12) {
@@ -213,8 +247,6 @@ struct AnalyzeView: View {
         .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brutalBorder, lineWidth: 1))
     }
-
-    // MARK: - Error
 
     private func errorCard(_ msg: String) -> some View {
         HStack(spacing: 10) {
@@ -236,8 +268,6 @@ struct AnalyzeView: View {
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brutalRed.opacity(0.4), lineWidth: 1))
     }
 
-    // MARK: - Empty State
-
     private var emptyState: some View {
         VStack(spacing: 10) {
             Text(mode == nil ? "SELECT A PERIOD" : "NO ANALYSIS")
@@ -254,52 +284,38 @@ struct AnalyzeView: View {
         .padding(60)
     }
 
-    // MARK: - Report Card
-
-    private var reportCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                HStack(spacing: 6) {
-                    Rectangle().fill(Color.brutalRed).frame(width: 3, height: 14)
-                    Text(analyzedLabel.uppercased())
-                        .font(.system(size: 10, weight: .black))
-                        .foregroundStyle(Color.white.opacity(0.5))
-                        .tracking(1)
-                }
-                Spacer()
-                if let updated = lastUpdated {
-                    Text(updated.formatted(.relative(presentation: .named)))
-                        .font(.caption2)
-                        .foregroundStyle(Color.white.opacity(0.25))
-                }
-            }
-
-            Divider().background(Color.brutalBorder)
-
-            Text(report)
-                .font(.system(size: 14, weight: .regular, design: .monospaced))
-                .lineSpacing(5)
-                .foregroundStyle(Color.white.opacity(0.85))
-        }
-        .padding(16)
-        .background(Color(white: 0.08), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brutalBorder, lineWidth: 1))
-    }
-
     // MARK: - Actions
 
-    private func clearResults() { report = ""; error = nil; lastUpdated = nil; analyzedLabel = "" }
+    private func clearResults() {
+        error = nil
+        conversationId = nil
+        messages = []
+    }
 
     private func analyze() async {
         guard let period = periodString else { return }
         isLoading = true; error = nil
-        let label = periodDisplayLabel
+        conversationId = nil; messages = []
         defer { isLoading = false }
         do {
             let resp = try await ServerClient.shared.analyze(period: period)
-            report = resp.report
-            analyzedLabel = label
-            lastUpdated = .now
+            conversationId = resp.conversationId
+            messages = [ChatMessage(role: .assistant, text: resp.report)]
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func loadConversation(id: Int) async {
+        clearResults()
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let detail = try await ServerClient.shared.getConversation(id: id)
+            conversationId = detail.id
+            messages = detail.messages.map {
+                ChatMessage(role: $0.isUser ? .user : .assistant, text: $0.content)
+            }
         } catch {
             self.error = error.localizedDescription
         }
