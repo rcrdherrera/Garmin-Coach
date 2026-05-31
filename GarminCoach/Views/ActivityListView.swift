@@ -126,9 +126,13 @@ struct ActivityListView: View {
 
     private func parseDate(_ str: String) -> Date {
         let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
         fmt.locale = Locale(identifier: "en_US_POSIX")
-        return fmt.date(from: String(str.prefix(19))) ?? Date()
+        let trimmed = String(str.prefix(19))
+        // Garmin DB uses space separator; try both formats
+        fmt.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        if let d = fmt.date(from: trimmed) { return d }
+        fmt.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return fmt.date(from: trimmed) ?? Date()
     }
 }
 

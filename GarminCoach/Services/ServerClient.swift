@@ -286,12 +286,16 @@ class ServerClient {
         try await request("/activities?limit=\(limit)")
     }
 
-    func analyze(period: String) async throws -> AnalyzeResponse {
-        try await request("/analyze", method: "POST", body: ["period": period], timeout: 120)
+    func analyze(period: String, activityType: String? = nil) async throws -> AnalyzeResponse {
+        var body: [String: Any] = ["period": period]
+        if let t = activityType { body["activity_type"] = t }
+        return try await request("/analyze", method: "POST", body: body, timeout: 120)
     }
 
-    func coach(type: String, upload: Bool = false) async throws -> CoachResponse {
-        try await request("/coach", method: "POST", body: ["type": type, "upload": upload], timeout: 120)
+    func coach(type: String, upload: Bool = false, conversationId: Int? = nil) async throws -> CoachResponse {
+        var body: [String: Any] = ["type": type, "upload": upload]
+        if let cid = conversationId { body["conversation_id"] = cid }
+        return try await request("/coach", method: "POST", body: body, timeout: 120)
     }
 
     func evaluate(activityId: Int? = nil) async throws -> EvaluateResponse {

@@ -159,7 +159,7 @@ final class CacheManager {
     func syncActivitiesIfNeeded(context: ModelContext) async {
         guard shouldRefetch(lastActivitiesSync, interval: 3600) else { return }
         do {
-            let activities = try await ServerClient.shared.getActivities(limit: 50)
+            let activities = try await ServerClient.shared.getActivities(limit: 300)
             try storeActivities(activities, in: context)
             lastActivitiesSync = .now
         } catch {}

@@ -6,17 +6,11 @@ struct ContentView: View {
             StatusView()
                 .tabItem { Label("Today", systemImage: "waveform.path.ecg") }
 
-            ActivityListView()
-                .tabItem { Label("Activities", systemImage: "figure.run.circle") }
+            TrainingView()
+                .tabItem { Label("Training", systemImage: "figure.run.circle") }
 
             CoachingView()
-                .tabItem { Label("Coach", systemImage: "figure.run") }
-
-            AnalyzeView()
-                .tabItem { Label("Analyze", systemImage: "chart.bar.xaxis") }
-
-            ChatView()
-                .tabItem { Label("Ask", systemImage: "bubble.left.and.bubble.right.fill") }
+                .tabItem { Label("Coach", systemImage: "brain.head.profile") }
         }
         .tint(Color.brutalRed)
         .preferredColorScheme(.dark)

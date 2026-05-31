@@ -8,6 +8,9 @@ enum AnalyzeMode: String, CaseIterable {
 }
 
 struct AnalyzeView: View {
+    /// Optional activity type filter pre-selected by the caller (e.g. "running")
+    var presetActivityType: String? = nil
+
     @State private var mode: AnalyzeMode? = nil
     @State private var selectedDay     = Date()
     @State private var selectedWeekRef = Date()
@@ -298,7 +301,10 @@ struct AnalyzeView: View {
         conversationId = nil; messages = []
         defer { isLoading = false }
         do {
-            let resp = try await ServerClient.shared.analyze(period: period)
+            let resp = try await ServerClient.shared.analyze(
+                period: period,
+                activityType: presetActivityType
+            )
             conversationId = resp.conversationId
             messages = [ChatMessage(role: .assistant, text: resp.report)]
         } catch {
