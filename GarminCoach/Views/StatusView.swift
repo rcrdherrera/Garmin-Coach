@@ -8,6 +8,7 @@ struct StatusView: View {
 
     @State private var status: ServerStatus?
     @State private var isLoading = false
+    @State private var isSyncing = false
     @State private var error: String?
     @State private var lastUpdated: Date?
     @State private var showSettings = false
@@ -133,6 +134,10 @@ struct StatusView: View {
 
     @ViewBuilder
     private func mainContent(_ s: ServerStatus) -> some View {
+        if s.hasStaleRecoveryOrSleep {
+            staleBanner(s)
+        }
+
         RecoveryRingCard(status: s)
 
         if s.bodyBattery != nil || s.sleep != nil {
@@ -203,6 +208,54 @@ struct StatusView: View {
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brutalBorder, lineWidth: 1))
     }
 
+    // MARK: - Stale data banner
+
+    @ViewBuilder
+    private func staleBanner(_ s: ServerStatus) -> some View {
+        let fields = s.staleFields ?? []
+        let label = fields
+            .map { $0 == "body_battery" ? "body battery" : $0 }
+            .joined(separator: " & ")
+
+        HStack(spacing: 10) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.caption)
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("CACHED DATA")
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundStyle(.orange)
+                    .tracking(1)
+                Text("Garmin hasn't reported today's \(label) yet")
+                    .font(.caption2)
+                    .foregroundStyle(Color.white.opacity(0.45))
+            }
+            Spacer()
+            Button {
+                Task { await syncAndReload() }
+            } label: {
+                if isSyncing {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .tint(.white)
+                        .frame(width: 52, height: 22)
+                } else {
+                    Text("SYNC")
+                        .font(.system(size: 10, weight: .black))
+                        .tracking(1)
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 22)
+                        .background(Color.orange, in: RoundedRectangle(cornerRadius: 4))
+                }
+            }
+            .disabled(isSyncing)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.3), lineWidth: 1))
+    }
+
     // MARK: - Helpers
 
     private func load() async {
@@ -214,6 +267,18 @@ struct StatusView: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    private func syncAndReload() async {
+        isSyncing = true
+        defer { isSyncing = false }
+        do {
+            try await ServerClient.shared.syncToday()
+        } catch {
+            // sync failed — still reload to pick up whatever the DB has
+        }
+        await load()
+        await CacheManager.shared.syncTrendsIfNeeded(context: modelContext)
     }
 
     private func stressColor(_ stress: Int) -> Color {

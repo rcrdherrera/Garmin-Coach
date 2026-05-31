@@ -42,10 +42,17 @@ struct ServerStatus: Decodable {
     let sleep: Sleep?
     let rhr: Int?
     let stress: Int?
+    let staleFields: [String]?   // fields backfilled from SQLite (not live API)
 
     enum CodingKeys: String, CodingKey {
         case date, bodyBattery = "body_battery", hrv, readiness
         case trainingStatus = "training_status", sleep, rhr, stress
+        case staleFields = "_stale_fields"
+    }
+
+    var hasStaleRecoveryOrSleep: Bool {
+        guard let fields = staleFields else { return false }
+        return fields.contains("readiness") || fields.contains("sleep")
     }
 }
 
@@ -264,6 +271,11 @@ class ServerClient {
 
     func getStatus() async throws -> ServerStatus {
         try await request("/status")
+    }
+
+    func syncToday() async throws {
+        struct SyncResult: Decodable { let status: String }
+        let _: SyncResult = try await request("/sync", method: "POST", timeout: 130)
     }
 
     func getTrends(days: Int = 30) async throws -> TrendsResponse {
