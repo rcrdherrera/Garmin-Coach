@@ -54,16 +54,12 @@ struct StatusView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        Task {
-                            await load()
-                            await CacheManager.shared.syncTrendsIfNeeded(context: modelContext)
-                            await CacheManager.shared.syncActivitiesIfNeeded(context: modelContext)
-                        }
+                        Task { await syncAndReload() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(isLoading ? Color.white.opacity(0.3) : Color.brutalRed)
+                            .foregroundStyle(isSyncing ? Color.white.opacity(0.3) : Color.brutalRed)
                     }
-                    .disabled(isLoading)
+                    .disabled(isSyncing)
                 }
             }
             .sheet(isPresented: $showSettings) {
@@ -279,6 +275,7 @@ struct StatusView: View {
         }
         await load()
         await CacheManager.shared.syncTrendsIfNeeded(context: modelContext)
+        await CacheManager.shared.forceSyncActivities(context: modelContext)
     }
 
     private func stressColor(_ stress: Int) -> Color {

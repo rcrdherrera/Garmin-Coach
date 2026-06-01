@@ -64,6 +64,7 @@ struct ActivityListView: View {
     private func forceSync() async {
         isLoading = true
         defer { isLoading = false }
+        try? await ServerClient.shared.syncToday()
         await CacheManager.shared.forceSyncActivities(context: modelContext)
     }
 
