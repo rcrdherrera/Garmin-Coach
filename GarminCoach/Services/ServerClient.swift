@@ -193,10 +193,6 @@ struct EvaluateResponse: Decodable {
     }
 }
 
-struct ChatResponse: Decodable {
-    let response: String
-}
-
 struct RememberResponse: Decodable {
     let saved: String
     let file: String
@@ -229,12 +225,15 @@ class ServerClient {
     private var baseURL: String { KeychainHelper.loadServerURL() ?? "" }
     private var token: String   { KeychainHelper.loadServerToken() ?? "" }
 
-    private var localDateString: String {
+    private static let _localDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.locale = Locale(identifier: "en_US_POSIX")
-        // uses the device's current calendar/timezone by default
-        return f.string(from: Date())
+        return f
+    }()
+
+    private var localDateString: String {
+        Self._localDateFormatter.string(from: Date())
     }
 
     // MARK: Generic request

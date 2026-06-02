@@ -153,7 +153,9 @@ final class CacheManager {
             let response = try await ServerClient.shared.getTrends(days: 30)
             try storeTrends(response.snapshots, in: context)
             lastTrendsSync = .now
-        } catch {}
+        } catch {
+            print("[cache] syncTrends failed: \(error.localizedDescription)")
+        }
     }
 
     func syncActivitiesIfNeeded(context: ModelContext) async {
@@ -162,7 +164,9 @@ final class CacheManager {
             let activities = try await ServerClient.shared.getActivities(limit: 300)
             try storeActivities(activities, in: context)
             lastActivitiesSync = .now
-        } catch {}
+        } catch {
+            print("[cache] syncActivities failed: \(error.localizedDescription)")
+        }
     }
 
     func forceSyncActivities(context: ModelContext) async {

@@ -29,13 +29,6 @@ struct CoachingView: View {
         ("Upper Body",   "upper-body", "figure.arms.open"),
     ]
 
-    private let suggestions = [
-        "How's my training load this week?",
-        "Am I ready for a hard session today?",
-        "What pace should I target for easy runs?",
-        "How's my HRV trend lately?",
-    ]
-
     private var hasConversation: Bool { !messages.isEmpty }
     private var isFreeChatMode: Bool { sessionType == nil }
 
@@ -188,7 +181,7 @@ struct CoachingView: View {
                         .multilineTextAlignment(.center)
                 }
                 VStack(spacing: 6) {
-                    ForEach(suggestions, id: \.self) { suggestion in
+                    ForEach(coachSuggestions, id: \.self) { suggestion in
                         Button {
                             Task { await sendFreeChat(suggestion) }
                         } label: {
@@ -371,9 +364,15 @@ struct CoachingView: View {
         sessionTypes.first(where: { $0.value == sessionType })?.label ?? sessionType ?? ""
     }
 
+    private static let _isoDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     private func formattedDate(_ iso: String) -> String {
-        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
-        guard let d = df.date(from: iso) else { return iso }
+        guard let d = Self._isoDateFormatter.date(from: iso) else { return iso }
         return d.formatted(date: .abbreviated, time: .omitted)
     }
 

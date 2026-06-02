@@ -70,12 +70,20 @@ struct ConversationHistoryList: View {
                 .listRowSeparatorTint(Color.white.opacity(0.08))
             }
             .onDelete { offsets in
-                let toDelete = offsets.map { conversations[$0].id }
+                let backup = conversations
+                let ids = offsets.map { conversations[$0].id }
                 conversations.remove(atOffsets: offsets)
                 Task {
-                    for id in toDelete {
-                        try? await ServerClient.shared.deleteConversation(id: id)
+                    var anyFailed = false
+                    for id in ids {
+                        do {
+                            try await ServerClient.shared.deleteConversation(id: id)
+                        } catch {
+                            print("[history] Delete \(id) failed: \(error.localizedDescription)")
+                            anyFailed = true
+                        }
                     }
+                    if anyFailed { conversations = backup }
                 }
             }
         }
@@ -153,14 +161,25 @@ struct ConversationHistoryList: View {
         }
     }
 
-    private func relativeDate(_ iso: String) -> String {
-        let df = ISO8601DateFormatter()
-        df.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let df2 = ISO8601DateFormatter()
-        df2.formatOptions = [.withInternetDateTime]
-        guard let date = df.date(from: iso + "Z") ?? df2.date(from: iso + "Z") else { return iso }
+    private static let _isoWithFractionals: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let _isoBasic: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+    private static let _relativeFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .abbreviated
-        return f.localizedString(for: date, relativeTo: Date())
+        return f
+    }()
+
+    private func relativeDate(_ iso: String) -> String {
+        guard let date = Self._isoWithFractionals.date(from: iso + "Z")
+                      ?? Self._isoBasic.date(from: iso + "Z") else { return iso }
+        return Self._relativeFormatter.localizedString(for: date, relativeTo: Date())
     }
 }

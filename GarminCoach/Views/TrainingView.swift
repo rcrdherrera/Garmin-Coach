@@ -200,19 +200,34 @@ struct TrainingView: View {
             if let lastWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: thisWeek),
                calendar.isDate(weekStart, equalTo: lastWeek, toGranularity: .day) { return "Last Week" }
         }
-        let fmt = DateFormatter(); fmt.dateFormat = "MMM d"
         let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart
-        return "\(fmt.string(from: weekStart)) – \(fmt.string(from: weekEnd))"
+        return "\(Self._weekRangeFormatter.string(from: weekStart)) – \(Self._weekRangeFormatter.string(from: weekEnd))"
     }
 
+    private static let _weekRangeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f
+    }()
+
+    private static let _dateParser1: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return f
+    }()
+    private static let _dateParser2: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        return f
+    }()
+
     private func parseDate(_ str: String) -> Date {
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "en_US_POSIX")
         let trimmed = String(str.prefix(19))
-        fmt.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        if let d = fmt.date(from: trimmed) { return d }
-        fmt.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-        return fmt.date(from: trimmed) ?? Date()
+        return Self._dateParser1.date(from: trimmed)
+            ?? Self._dateParser2.date(from: trimmed)
+            ?? Date()
     }
 
     // MARK: - Sync
