@@ -229,6 +229,14 @@ class ServerClient {
     private var baseURL: String { KeychainHelper.loadServerURL() ?? "" }
     private var token: String   { KeychainHelper.loadServerToken() ?? "" }
 
+    private var localDateString: String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        // uses the device's current calendar/timezone by default
+        return f.string(from: Date())
+    }
+
     // MARK: Generic request
 
     private func request<T: Decodable>(
@@ -275,7 +283,7 @@ class ServerClient {
     // MARK: Endpoints
 
     func getStatus() async throws -> ServerStatus {
-        try await request("/status")
+        try await request("/status?local_date=\(localDateString)")
     }
 
     func syncToday() async throws {
@@ -298,7 +306,7 @@ class ServerClient {
     }
 
     func coach(type: String, upload: Bool = false, conversationId: Int? = nil) async throws -> CoachResponse {
-        var body: [String: Any] = ["type": type, "upload": upload]
+        var body: [String: Any] = ["type": type, "upload": upload, "local_date": localDateString]
         if let cid = conversationId { body["conversation_id"] = cid }
         return try await request("/coach", method: "POST", body: body, timeout: 120)
     }
