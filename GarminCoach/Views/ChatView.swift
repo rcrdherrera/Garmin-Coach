@@ -19,6 +19,7 @@ struct ChatView: View {
     @State private var isLoading = false
     @State private var errorText: String?
     @State private var showHistory = false
+    @State private var rememberedToast = false
     @FocusState private var inputFocused: Bool
 
     private let suggestions = [
@@ -37,6 +38,21 @@ struct ChatView: View {
                     emptyState.transition(.opacity)
                 } else {
                     messageList
+                }
+
+                if rememberedToast {
+                    VStack {
+                        Spacer()
+                        Text("Saved to context")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color(white: 0.15), in: Capsule())
+                            .overlay(Capsule().stroke(Color.brutalBorder, lineWidth: 1))
+                            .foregroundStyle(.white)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .padding(.bottom, 100)
+                    }
                 }
             }
             .navigationTitle("ASK")
@@ -150,7 +166,9 @@ struct ChatView: View {
             ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(messages) { msg in
-                        MessageBubble(message: msg).id(msg.id)
+                        MessageBubble(message: msg, onRemember: { text in
+                            Task { await rememberNote(text) }
+                        }).id(msg.id)
                     }
 
                     if isLoading {
@@ -256,6 +274,15 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Remember
+
+    private func rememberNote(_ text: String) async {
+        try? await ServerClient.shared.remember(note: text)
+        withAnimation { rememberedToast = true }
+        try? await Task.sleep(for: .seconds(2))
+        withAnimation { rememberedToast = false }
+    }
+
     // MARK: - Load historical conversation
 
     private func loadConversation(id: Int) async {
@@ -278,6 +305,7 @@ struct ChatView: View {
 
 struct MessageBubble: View {
     let message: ChatMessage
+    var onRemember: ((String) -> Void)? = nil
     private var isUser: Bool { message.role == .user }
 
     var body: some View {
@@ -309,6 +337,11 @@ struct MessageBubble: View {
             .contextMenu {
                 Button("Copy", systemImage: "doc.on.doc") {
                     UIPasteboard.general.string = message.text
+                }
+                if !isUser, let onRemember {
+                    Button("Remember", systemImage: "brain") {
+                        onRemember(message.text)
+                    }
                 }
             }
 
@@ -355,12 +388,30 @@ struct ConversationThreadView: View {
     @State private var inputText = ""
     @State private var isLoading = false
     @State private var errorText: String?
+    @State private var rememberedToast = false
     @FocusState private var inputFocused: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            messageList
-            inputBar
+        ZStack {
+            VStack(spacing: 0) {
+                messageList
+                inputBar
+            }
+
+            if rememberedToast {
+                VStack {
+                    Spacer()
+                    Text("Saved to context")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(white: 0.15), in: Capsule())
+                        .overlay(Capsule().stroke(Color.brutalBorder, lineWidth: 1))
+                        .foregroundStyle(.white)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.bottom, 80)
+                }
+            }
         }
     }
 
@@ -371,7 +422,9 @@ struct ConversationThreadView: View {
             ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(messages) { msg in
-                        MessageBubble(message: msg).id(msg.id)
+                        MessageBubble(message: msg, onRemember: { text in
+                            Task { await rememberNote(text) }
+                        }).id(msg.id)
                     }
 
                     if isLoading {
@@ -472,5 +525,12 @@ struct ConversationThreadView: View {
         } catch {
             withAnimation { errorText = error.localizedDescription }
         }
+    }
+
+    private func rememberNote(_ text: String) async {
+        try? await ServerClient.shared.remember(note: text)
+        withAnimation { rememberedToast = true }
+        try? await Task.sleep(for: .seconds(2))
+        withAnimation { rememberedToast = false }
     }
 }

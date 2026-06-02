@@ -197,6 +197,11 @@ struct ChatResponse: Decodable {
     let response: String
 }
 
+struct RememberResponse: Decodable {
+    let saved: String
+    let file: String
+}
+
 // MARK: - Errors
 
 enum ServerError: LocalizedError {
@@ -323,6 +328,10 @@ class ServerClient {
     func deleteConversation(id: Int) async throws {
         struct Empty: Decodable {}
         let _: Empty = try await request("/conversations/\(id)", method: "DELETE")
+    }
+
+    func remember(note: String) async throws {
+        let _: RememberResponse = try await request("/remember", method: "POST", body: ["note": note])
     }
 
     func isReachable() async -> Bool {
